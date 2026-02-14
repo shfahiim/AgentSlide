@@ -7,24 +7,31 @@ import { PresentationControls } from "@/components/presentation/presentation-con
 import { SlideRenderer } from "@/components/presentation/slide-renderer";
 import { DeckSpec } from "@/lib/types";
 import { getTheme, themeToCssVars } from "@/lib/themes";
+import { use } from "react";
 
-export default function PresentationPage({ params }: { params: { id: string } }) {
+export default function PresentationPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
   const [deck, setDeck] = useState<DeckSpec | null>(null);
   const [index, setIndex] = useState(0);
   const searchParams = useSearchParams();
   const debug = searchParams.get("debug") === "true";
 
   useEffect(() => {
-    fetch(`/api/deck/${params.id}`)
+    fetch(`/api/deck/${id}`)
       .then((res) => res.json())
       .then((json) => setDeck(json))
       .catch(() => setDeck(null));
-  }, [params.id]);
+  }, [id]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (!deck) return;
-      if (event.key === "ArrowRight") setIndex((i) => Math.min(i + 1, deck.slides.length - 1));
+      if (event.key === "ArrowRight")
+        setIndex((i) => Math.min(i + 1, deck.slides.length - 1));
       if (event.key === "ArrowLeft") setIndex((i) => Math.max(i - 1, 0));
     };
     window.addEventListener("keydown", onKey);
@@ -40,7 +47,13 @@ export default function PresentationPage({ params }: { params: { id: string } })
 
   return (
     <main className="min-h-screen" style={style as React.CSSProperties}>
-      <div className="h-screen w-screen" style={{ background: "var(--slide-bg)", color: "var(--slide-text)" }}>
+      <div
+        className="h-screen w-screen"
+        style={{
+          background: "var(--slide-bg)",
+          color: "var(--slide-text)",
+        }}
+      >
         <ErrorBoundary>
           <SlideRenderer slide={deck.slides[index]} isActive />
         </ErrorBoundary>
@@ -49,7 +62,9 @@ export default function PresentationPage({ params }: { params: { id: string } })
         index={index}
         total={deck.slides.length}
         onPrev={() => setIndex((i) => Math.max(i - 1, 0))}
-        onNext={() => setIndex((i) => Math.min(i + 1, deck.slides.length - 1))}
+        onNext={() =>
+          setIndex((i) => Math.min(i + 1, deck.slides.length - 1))
+        }
       />
 
       {debug ? (

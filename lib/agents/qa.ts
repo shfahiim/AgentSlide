@@ -1,36 +1,69 @@
-import { generateStructuredWithRetry } from "../gemini";
 import { SlideSpecSchema } from "../schemas";
 import { SlideSpec } from "../types";
-import { COMPRESSOR_SYSTEM_PROMPT } from "./prompts/compressor";
 
 export interface QAResult {
   slides: SlideSpec[];
   issues: string[];
 }
 
-async function compressSlide(slide: SlideSpec): Promise<SlideSpec> {
-  return generateStructuredWithRetry({
-    prompt: JSON.stringify(slide),
-    systemPrompt: COMPRESSOR_SYSTEM_PROMPT,
-    schema: SlideSpecSchema,
-    schemaName: "SlideSpec",
-    temperature: 0.2,
-  });
-}
+const MAX_BULLETS = 5;
+const MAX_BULLET_LENGTH = 80;
 
-export async function runQA(slides: SlideSpec[]): Promise<QAResult> {
-  const issues: string[] = [];
-  const corrected: SlideSpec[] = [];
+/**
+ * Locally compress a slide that exceeds soft limits.
+ * No LLM call — just deterministic trimming.
+ */
+function compressSlide(slide: SlideSpec): SlideSpec {
+  let bullets = slide.bullets;
 
-  for (const slide of slides) {
-    let candidate = SlideSpecSchema.parse(slide);
-    const needsCompression = candidate.bullets.length > 5 || candidate.bullets.some((b) => b.length > 80);
-    if (needsCompression) {
-      issues.push(`Slide ${candidate.slideNumber}: compressed for soft limits`);
-      candidate = await compressSlide(candidate);
-    }
-    corrected.push(candidate);
+  // Trim each bullet to max length
+  bullets = bullets.map((b) =>
+    b.length > MAX_BULLET_LENGTH
+      ? b.slice(0, MAX_BULLET_LENGTH - 1).trimEnd() + "…"
+      : b,
+  );
+
+  // Keep only the first MAX_BULLETS items
+  if (bullets.length > MAX_BULLETS) {
+    bullets = bullets.slice(0, MAX_BULLETS);
   }
 
-  return { slides: corrected, issues };
+  return { ...slide, bullets };
+}
+
+/**
+ * Validates all slides and compresses any that exceed soft limits.
+ * Entirely local — no Gemini API calls.
+ */
+export async function runQA(slides: SlideSpec[]): Promise<QAResult> {
+  const issues: string[] = [];
+  const validated: SlideSpec[] = [];
+
+  for (const slide of slides) {
+    // 1. Hard validation via Zod
+    const parseResult = SlideSpecSchema.safeParse(slide);
+    if (!parseResult.success) {
+      issues.push(
+        `Slide ${slide.slideNumber}: Schema validation failed — ${parseResult.error.message}`,
+      );
+      validated.push(slide);
+      continue;
+    }
+
+    // 2. Soft limit checks — local compression (no API call)
+    const needsCompression =
+      parseResult.data.bullets.length > MAX_BULLETS ||
+      parseResult.data.bullets.some((b) => b.length > MAX_BULLET_LENGTH);
+
+    if (needsCompression) {
+      issues.push(
+        `Slide ${parseResult.data.slideNumber}: Compressed overcrowded content locally`,
+      );
+      validated.push(compressSlide(parseResult.data));
+    } else {
+      validated.push(parseResult.data);
+    }
+  }
+
+  return { slides: validated, issues };
 }

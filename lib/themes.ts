@@ -27,14 +27,47 @@ export const THEMES: Record<string, ThemeSpec> = {
     fonts: { heading: "Inter", body: "Inter" },
     borderRadius: 8,
   },
+  corporate: {
+    name: "Corporate",
+    colors: {
+      background: "#f1f5f9",
+      surface: "#ffffff",
+      text: "#475569",
+      heading: "#1e293b",
+      accent: "#0369a1",
+      accentSecondary: "#0891b2",
+    },
+    fonts: { heading: "Inter", body: "Inter" },
+    borderRadius: 4,
+  },
+  vibrant: {
+    name: "Vibrant",
+    colors: {
+      background: "#1a1a2e",
+      surface: "#16213e",
+      text: "#eee8e8",
+      heading: "#ffffff",
+      accent: "#e94560",
+      accentSecondary: "#0f3460",
+    },
+    fonts: { heading: "Inter", body: "Inter" },
+    borderRadius: 16,
+  },
 };
 
+/**
+ * Get a theme by name. Falls back to modern-dark.
+ */
 export function getTheme(name?: string): ThemeSpec {
   if (!name) return THEMES["modern-dark"];
-  const key = name.toLowerCase().replace(/\s+/g, "-");
-  return THEMES[key] ?? THEMES["modern-dark"];
+  // Fuzzy match: "dark" → "modern-dark", "Modern Dark" → "modern-dark"
+  const normalized = name.toLowerCase().replace(/\s+/g, "-");
+  return THEMES[normalized] ?? THEMES["modern-dark"];
 }
 
+/**
+ * Convert ThemeSpec → CSS custom properties string (for web renderer).
+ */
 export function themeToCssVars(theme: ThemeSpec): Record<string, string> {
   return {
     "--slide-bg": theme.colors.background,
