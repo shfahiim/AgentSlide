@@ -1,6 +1,19 @@
 import { ThemeSpec } from "./types";
 
 export const THEMES: Record<string, ThemeSpec> = {
+  "emerald-modern": {
+    name: "Emerald Modern",
+    colors: {
+      background: "#ffffff",
+      surface: "#f9fafb",
+      text: "#111827",
+      heading: "#064e3b",
+      accent: "#10b981",
+      accentSecondary: "#34d399",
+    },
+    fonts: { heading: "Inter", body: "Inter" },
+    borderRadius: 16,
+  },
   "modern-dark": {
     name: "Modern Dark",
     colors: {
@@ -56,13 +69,13 @@ export const THEMES: Record<string, ThemeSpec> = {
 };
 
 /**
- * Get a theme by name. Falls back to modern-dark.
+ * Get a theme by name. Falls back to emerald-modern.
  */
 export function getTheme(name?: string): ThemeSpec {
-  if (!name) return THEMES["modern-dark"];
+  if (!name) return THEMES["emerald-modern"];
   // Fuzzy match: "dark" → "modern-dark", "Modern Dark" → "modern-dark"
   const normalized = name.toLowerCase().replace(/\s+/g, "-");
-  return THEMES[normalized] ?? THEMES["modern-dark"];
+  return THEMES[normalized] ?? THEMES["emerald-modern"];
 }
 
 /**

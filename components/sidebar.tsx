@@ -1,42 +1,187 @@
-import { Plus, Layout, Settings, Inbox } from "lucide-react";
+import {
+    Plus,
+    Layout,
+    Settings,
+    Inbox,
+    ChevronLeft,
+    ChevronRight,
+    Presentation,
+    Globe,
+    Network,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
+import { HistoryListItem } from "@/lib/hooks/use-history";
 
-export function Sidebar() {
+interface SidebarProps {
+    isCollapsed: boolean;
+    onToggle: () => void;
+    historyItems: HistoryListItem[];
+    historyStatus?: "idle" | "loading" | "error";
+    onNew: () => void;
+    onSelectHistory: (id: string) => void;
+    activeHistoryId?: string;
+}
+
+function modeIcon(mode: HistoryListItem["mode"]) {
+    if (mode === "slides") return Presentation;
+    if (mode === "webpage") return Globe;
+    return Network;
+}
+
+function formatDate(ts: number) {
+    try {
+        return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    } catch {
+        return "";
+    }
+}
+
+export function Sidebar({
+    isCollapsed,
+    onToggle,
+    historyItems,
+    historyStatus = "idle",
+    onNew,
+    onSelectHistory,
+    activeHistoryId,
+}: SidebarProps) {
     return (
-        <aside className="w-64 bg-zinc-50 border-r border-zinc-200 flex flex-col h-full shrink-0">
+        <motion.aside 
+            initial={false}
+            animate={{ width: isCollapsed ? 64 : 256 }}
+            className="bg-white border-r border-zinc-200 flex flex-col h-full shrink-0 relative"
+        >
+            {/* Toggle Button */}
+            <button 
+                onClick={onToggle}
+                className="absolute -right-3 top-20 size-6 bg-white border border-zinc-200 rounded-full flex items-center justify-center text-zinc-400 hover:text-emerald-500 shadow-sm z-50 transition-colors"
+            >
+                {isCollapsed ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}
+            </button>
+
             {/* Brand */}
-            <div className="p-4 flex items-center gap-2 border-b border-zinc-200/50">
-                <div className="size-8 bg-zinc-900 rounded-lg flex items-center justify-center">
+            <div className={cn(
+                "p-4 flex items-center gap-2 border-b border-zinc-100/50 h-14",
+                isCollapsed && "justify-center px-2"
+            )}>
+                <div className="size-8 bg-emerald-500 rounded-lg flex items-center justify-center shadow-sm shadow-emerald-200 shrink-0">
                     <Layout className="text-white size-4" />
                 </div>
-                <span className="font-semibold text-sm tracking-tight">PresentAI</span>
+                {!isCollapsed && <span className="font-semibold text-sm tracking-tight text-zinc-900 truncate">PresentAI</span>}
             </div>
 
             {/* New Presentation */}
             <div className="p-4">
-                <button className="w-full flex items-center gap-2 bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm">
-                    <Plus className="size-4" />
-                    <span>New Presentation</span>
+                <button
+                    onClick={onNew}
+                    className={cn(
+                    "flex items-center gap-2 bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-700 rounded-xl text-sm font-medium transition-all duration-200 shadow-sm active:scale-[0.98] w-full",
+                    isCollapsed ? "justify-center size-10 p-0" : "px-3 py-2"
+                )}>
+                    <Plus className="size-4 shrink-0" />
+                    {!isCollapsed && <span>New Presentation</span>}
                 </button>
             </div>
 
-            {/* History — empty state */}
+            {/* History */}
             <div className="flex-1 overflow-y-auto px-2 py-2">
-                <div className="text-xs font-medium text-zinc-400 px-2 py-1 mb-1 uppercase tracking-wider">
-                    History
-                </div>
-                <div className="flex flex-col items-center justify-center py-10 text-zinc-400">
-                    <Inbox className="size-6 mb-2 opacity-40" />
-                    <p className="text-xs text-center">No presentations yet</p>
-                </div>
+                {!isCollapsed && (
+                    <div className="text-[10px] font-bold text-zinc-400 px-3 py-1 mb-1 uppercase tracking-widest">
+                        History
+                    </div>
+                )}
+
+                {historyStatus === "loading" && historyItems.length === 0 ? (
+                    <div
+                        className={cn(
+                            "flex flex-col items-center justify-center py-12 text-zinc-300",
+                            isCollapsed && "py-4"
+                        )}
+                    >
+                        <Inbox className="size-6 mb-2 opacity-30" />
+                        {!isCollapsed && (
+                            <p className="text-xs text-center font-medium text-zinc-400">
+                                Loading history…
+                            </p>
+                        )}
+                    </div>
+                ) : historyItems.length === 0 ? (
+                    <div
+                        className={cn(
+                            "flex flex-col items-center justify-center py-12 text-zinc-300",
+                            isCollapsed && "py-4"
+                        )}
+                    >
+                        <Inbox className="size-6 mb-2 opacity-30" />
+                        {!isCollapsed && (
+                            <p className="text-xs text-center font-medium text-zinc-400">
+                                No outputs yet
+                            </p>
+                        )}
+                    </div>
+                ) : (
+                    <div className="space-y-1">
+                        {historyItems.map((item) => {
+                            const Icon = modeIcon(item.mode);
+                            const isActive = item.id === activeHistoryId;
+                            return (
+                                <button
+                                    key={item.id}
+                                    onClick={() => onSelectHistory(item.id)}
+                                    className={cn(
+                                        "w-full flex items-start gap-3 rounded-xl px-3 py-2 text-left transition-colors border",
+                                        isActive
+                                            ? "bg-emerald-50 border-emerald-200"
+                                            : "bg-white border-transparent hover:bg-zinc-50 hover:border-zinc-200"
+                                    )}
+                                    title={item.title}
+                                >
+                                    <div
+                                        className={cn(
+                                            "size-9 rounded-lg flex items-center justify-center shrink-0 border",
+                                            isActive
+                                                ? "bg-white border-emerald-200 text-emerald-700"
+                                                : "bg-white border-zinc-200 text-zinc-500"
+                                        )}
+                                    >
+                                        <Icon className="size-4" />
+                                    </div>
+
+                                    {!isCollapsed && (
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm font-semibold text-zinc-900 truncate">
+                                                    {item.title}
+                                                </span>
+                                                <span className="ml-auto text-[10px] font-bold text-zinc-400 shrink-0">
+                                                    {formatDate(item.createdAt)}
+                                                </span>
+                                            </div>
+                                            {(item.subtitle || item.prompt) && (
+                                                <div className="text-[11px] text-zinc-500 mt-0.5 line-clamp-2">
+                                                    {item.subtitle ?? item.prompt}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-zinc-200">
-                <button className="w-full flex items-center gap-2 px-2 py-2 text-sm text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 rounded-md transition-colors">
-                    <Settings className="size-4" />
-                    <span>Settings</span>
+            <div className="p-4 border-t border-zinc-100">
+                <button className={cn(
+                    "flex items-center gap-2 text-sm text-zinc-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors w-full",
+                    isCollapsed ? "justify-center size-10 p-0" : "px-2 py-2"
+                )}>
+                    <Settings className="size-4 shrink-0" />
+                    {!isCollapsed && <span>Settings</span>}
                 </button>
             </div>
-        </aside>
+        </motion.aside>
     );
 }

@@ -1,10 +1,19 @@
 @import "tailwindcss";
 
-/* ─── Custom theme ─────────────────────────────────────────────── */
-
 @theme {
   --font-heading: "Inter", sans-serif;
   --font-body: "Inter", sans-serif;
+
+  /* Emerald Sage Palette - Refined for Readability */
+  --color-sage-50: #f9fafb;
+  --color-sage-100: #f3f4f6;
+  --color-sage-200: #e5e7eb;
+  --color-emerald-50: #ecfdf5;
+  --color-emerald-500: #10b981;
+  --color-emerald-600: #059669;
+  --color-emerald-900: #064e3b;
+  --text-main: #111827;
+  --text-muted: #4b5563;
 }
 
 /* ─── Base styles ──────────────────────────────────────────────── */
@@ -16,8 +25,29 @@ body {
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: #ffffff;
+  color: var(--text-main);
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* Custom scrollbar for a cleaner look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-sage-200);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-emerald-500);
 }

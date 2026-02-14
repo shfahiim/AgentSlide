@@ -18,6 +18,7 @@ import { KnowledgeGraphGenerationState } from "@/lib/hooks/use-knowledge-graph-g
 import { OutputMode } from "@/app/page";
 import Link from "next/link";
 import { useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface PreviewPanelProps {
     mode: OutputMode;
@@ -58,7 +59,6 @@ export function PreviewPanel({
     const isGenerating = currentGen.status === "generating";
     const isComplete = currentGen.status === "complete";
 
-    // Build the data URI for the iframe
     const iframeSrcDoc = useMemo(() => {
         if (mode === "webpage") return webpageHtml;
         if (mode === "knowledge-graph") return kgHtml;
@@ -91,10 +91,10 @@ export function PreviewPanel({
     };
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full bg-white">
             {/* Toolbar */}
-            <div className="h-14 border-b border-zinc-200 flex items-center justify-between px-4 bg-white shrink-0">
-                <span className="text-sm font-medium text-zinc-500">
+            <div className="h-14 border-b border-zinc-100 flex items-center justify-between px-6 bg-white shrink-0">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400">
                     {mode === "slides" && slides.length > 0
                         ? `Slide ${currentSlideIndex + 1} of ${slides.length}`
                         : mode === "webpage" && isComplete
@@ -104,40 +104,38 @@ export function PreviewPanel({
                                 : "Preview"}
                 </span>
                 <div className="flex items-center gap-2">
-                    {/* SLIDE mode actions */}
                     {mode === "slides" && deckId && slideGeneration.result?.hasPptx && (
-                        <a
-                            href={`/api/export?id=${deckId}`}
-                            className="p-2 hover:bg-zinc-100 rounded-md text-zinc-500 transition-colors"
+                        <button
+                            onClick={() => window.location.href = `/api/export?id=${deckId}`}
+                            className="p-2 hover:bg-zinc-100 rounded-lg text-zinc-500 transition-colors"
                             title="Download PPTX"
                         >
                             <Download className="size-4" />
-                        </a>
+                        </button>
                     )}
                     {mode === "slides" && deckId && slideGeneration.result?.hasWeb && (
                         <Link
                             href={`/presentation/${deckId}`}
                             target="_blank"
-                            className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+                            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-md shadow-emerald-200 active:scale-95"
                         >
                             <Play className="size-3.5 fill-current" />
                             <span>Present</span>
                         </Link>
                     )}
 
-                    {/* WEBPAGE & KG mode actions */}
                     {(mode === "webpage" || mode === "knowledge-graph") && iframeSrcDoc && (
                         <>
                             <button
                                 onClick={handleDownloadHtml}
-                                className="p-2 hover:bg-zinc-100 rounded-md text-zinc-500 transition-colors"
+                                className="p-2 hover:bg-zinc-100 rounded-lg text-zinc-500 transition-colors"
                                 title="Download HTML"
                             >
                                 <Download className="size-4" />
                             </button>
                             <button
                                 onClick={handleOpenInNewTab}
-                                className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+                                className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-md shadow-emerald-200 active:scale-95"
                             >
                                 <ExternalLink className="size-3.5" />
                                 <span>Open</span>
@@ -148,79 +146,103 @@ export function PreviewPanel({
             </div>
 
             {/* Main Preview Area */}
-            <div className="flex-1 overflow-hidden bg-zinc-100/50 flex flex-col items-center justify-center relative">
-                {isGenerating ? (
-                    <div className="flex flex-col items-center gap-3 text-zinc-400">
-                        <Loader2 className="size-8 animate-spin text-indigo-500" />
-                        <p className="text-sm font-medium">
-                            {currentGen.progress.length > 0
-                                ? currentGen.progress[currentGen.progress.length - 1].message
-                                : "Starting pipeline..."}
-                        </p>
-                    </div>
-                ) : mode === "slides" && slides.length > 0 && currentSlide ? (
-                    <div className="p-6 w-full h-full flex items-center justify-center overflow-auto">
-                        <div
-                            className="w-full max-w-4xl aspect-video rounded-lg overflow-hidden shadow-xl shadow-zinc-200/50 border border-zinc-200 relative"
-                            style={
-                                {
-                                    ...themeStyle,
-                                    background: "var(--slide-bg)",
-                                    color: "var(--slide-text)",
-                                } as React.CSSProperties
-                            }
+            <div className="flex-1 overflow-hidden bg-zinc-50/30 flex flex-col items-center justify-center relative">
+                <AnimatePresence mode="wait">
+                    {isGenerating ? (
+                        <motion.div 
+                            key="generating"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 1.05 }}
+                            className="flex flex-col items-center gap-4 text-zinc-800"
                         >
-                            <ErrorBoundary>
-                                <SlideRenderer slide={currentSlide} isActive />
-                            </ErrorBoundary>
-                        </div>
-                    </div>
-                ) : (mode === "webpage" || mode === "knowledge-graph") && iframeSrcDoc ? (
-                    /* Webpage/KG iframe preview */
-                    <iframe
-                        srcDoc={iframeSrcDoc}
-                        className="w-full h-full border-0 bg-white"
-                        sandbox="allow-scripts allow-same-origin"
-                        title={`${mode} Preview`}
-                    />
-                ) : (
-                    /* Empty State */
-                    <div className="bg-white aspect-video w-full max-w-2xl mx-6 shadow-sm border border-zinc-200 rounded-xl flex flex-col items-center justify-center text-zinc-400">
-                        <div className="mb-4 p-4 rounded-full bg-zinc-50 border border-zinc-100">
-                            <div className="size-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 animate-pulse opacity-20" />
-                        </div>
-                        <p className="text-sm text-center px-4">
-                            {mode === "slides"
-                                ? "Send a message to generate slides"
-                                : mode === "webpage"
-                                    ? "Send a message to generate a webpage"
-                                    : "Send a message to generate a knowledge graph"}
-                        </p>
-                    </div>
-                )}
+                            <div className="relative">
+                                <Loader2 className="size-12 animate-spin text-emerald-500/20" />
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="size-2 bg-emerald-500 rounded-full animate-pulse" />
+                                </div>
+                            </div>
+                            <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">
+                                {currentGen.progress.length > 0
+                                    ? currentGen.progress[currentGen.progress.length - 1].message
+                                    : "Starting pipeline..."}
+                            </p>
+                        </motion.div>
+                    ) : mode === "slides" && slides.length > 0 && currentSlide ? (
+                        <motion.div 
+                            key={`slide-${currentSlideIndex}`}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="p-8 w-full h-full flex items-center justify-center overflow-auto"
+                        >
+                            <div
+                                className="w-full max-w-4xl aspect-video rounded-2xl overflow-hidden shadow-2xl shadow-zinc-900/10 border border-zinc-100 relative bg-white"
+                                style={
+                                    {
+                                        ...themeStyle,
+                                        background: "var(--slide-bg)",
+                                        color: "var(--slide-text)",
+                                    } as React.CSSProperties
+                                }
+                            >
+                                <ErrorBoundary>
+                                    <SlideRenderer slide={currentSlide} isActive />
+                                </ErrorBoundary>
+                            </div>
+                        </motion.div>
+                    ) : (mode === "webpage" || mode === "knowledge-graph") && iframeSrcDoc ? (
+                        <motion.iframe
+                            key="iframe-result"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            srcDoc={iframeSrcDoc}
+                            className="w-full h-full border-0 bg-white"
+                            sandbox="allow-scripts allow-same-origin"
+                            title={`${mode} Preview`}
+                        />
+                    ) : (
+                        /* Empty State */
+                        <motion.div 
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="bg-white aspect-video w-full max-w-2xl mx-8 shadow-xl shadow-zinc-900/5 border border-zinc-50 rounded-[32px] flex flex-col items-center justify-center text-zinc-300"
+                        >
+                            <div className="mb-6 p-6 rounded-3xl bg-zinc-50/50 border border-zinc-100">
+                                <div className="size-12 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 animate-pulse opacity-20" />
+                            </div>
+                            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-center px-8">
+                                {mode === "slides"
+                                    ? "Describe topic to generate slides"
+                                    : mode === "webpage"
+                                        ? "Describe topic to generate webpage"
+                                        : "Describe topic to generate graph"}
+                            </p>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
 
             {/* Slide Navigation (only for slide mode) */}
             {mode === "slides" && slides.length > 0 && (
-                <div className="h-16 border-t border-zinc-200 bg-white flex items-center justify-center gap-4 shrink-0">
+                <div className="h-16 border-t border-zinc-100 bg-white flex items-center justify-center gap-8 shrink-0">
                     <button
                         onClick={() => setCurrentSlideIndex(Math.max(0, currentSlideIndex - 1))}
                         disabled={currentSlideIndex === 0}
-                        className="p-2 rounded-full hover:bg-zinc-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                        className="p-2 rounded-xl text-zinc-800 hover:bg-zinc-100 disabled:opacity-20 disabled:hover:bg-transparent transition-all active:scale-90"
                     >
-                        <ChevronLeft className="size-5" />
+                        <ChevronLeft className="size-6" />
                     </button>
 
-                    <div className="flex gap-1.5">
+                    <div className="flex gap-2">
                         {slides.map((_, i) => (
                             <button
                                 key={i}
                                 onClick={() => setCurrentSlideIndex(i)}
                                 className={cn(
-                                    "h-1.5 rounded-full transition-all duration-300",
+                                    "h-1.5 rounded-full transition-all duration-500",
                                     i === currentSlideIndex
-                                        ? "w-8 bg-zinc-900"
-                                        : "w-1.5 bg-zinc-300 hover:bg-zinc-400"
+                                        ? "w-10 bg-emerald-500 shadow-sm shadow-emerald-200"
+                                        : "w-1.5 bg-emerald-100 hover:bg-emerald-200"
                                 )}
                             />
                         ))}
@@ -231,9 +253,9 @@ export function PreviewPanel({
                             setCurrentSlideIndex(Math.min(slides.length - 1, currentSlideIndex + 1))
                         }
                         disabled={currentSlideIndex === slides.length - 1}
-                        className="p-2 rounded-full hover:bg-zinc-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                        className="p-2 rounded-xl text-emerald-800 hover:bg-emerald-50 disabled:opacity-20 disabled:hover:bg-transparent transition-all active:scale-90"
                     >
-                        <ChevronRight className="size-5" />
+                        <ChevronRight className="size-6" />
                     </button>
                 </div>
             )}

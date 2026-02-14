@@ -109,7 +109,19 @@ export const SlideSpecSchema = z.object({
   title: z.string().max(80),
   subtitle: z.string().max(120).optional(),
   bullets: z.array(z.string().max(100)).max(6),
-  speakerNotes: z.string().max(500).optional(),
+  speakerNotes: z.preprocess((value) => {
+    if (value === null || value === undefined) return undefined;
+    if (typeof value !== "string") return value;
+
+    const normalized = value.trim().replace(/\s+/g, " ");
+    if (!normalized) return undefined;
+    if (normalized.length <= 500) return normalized;
+
+    const slice = normalized.slice(0, 499);
+    const lastSpace = slice.lastIndexOf(" ");
+    const cut = lastSpace > 300 ? slice.slice(0, lastSpace) : slice;
+    return `${cut.trimEnd()}…`;
+  }, z.string().max(500).optional()),
   layout: z.enum(LAYOUTS),
   visuals: z.array(AssetSpecSchema).max(3),
   citations: z.array(CitationSchema).optional(),

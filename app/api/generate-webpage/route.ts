@@ -36,6 +36,21 @@ export async function POST(req: NextRequest) {
                 const outputDir = join(process.cwd(), "output", pageId);
                 await mkdir(outputDir, { recursive: true });
                 await writeFile(join(outputDir, "index.html"), result.html, "utf-8");
+                await writeFile(
+                    join(outputDir, "meta.json"),
+                    JSON.stringify(
+                        {
+                            id: pageId,
+                            mode: "webpage",
+                            title: result.title,
+                            prompt,
+                            createdAt: Date.now(),
+                        },
+                        null,
+                        2
+                    ),
+                    "utf-8"
+                );
 
                 send("complete", {
                     pageId,

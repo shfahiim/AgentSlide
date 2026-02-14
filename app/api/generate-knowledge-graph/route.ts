@@ -43,6 +43,24 @@ export async function POST(req: NextRequest) {
                     JSON.stringify(result.graphData, null, 2),
                     "utf-8"
                 );
+                await writeFile(
+                    join(outputDir, "meta.json"),
+                    JSON.stringify(
+                        {
+                            id: graphId,
+                            mode: "knowledge-graph",
+                            title: result.title,
+                            prompt,
+                            createdAt: Date.now(),
+                            depth,
+                            nodeCount: result.graphData.nodes.length,
+                            edgeCount: result.graphData.edges.length,
+                        },
+                        null,
+                        2
+                    ),
+                    "utf-8"
+                );
 
                 send("complete", {
                     graphId,

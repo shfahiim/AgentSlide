@@ -13,6 +13,14 @@ export interface WebpageGenerationState {
 export function useWebpageGeneration() {
     const [state, setState] = useState<WebpageGenerationState>({ status: "idle", progress: [] });
 
+    const reset = useCallback(() => {
+        setState({ status: "idle", progress: [] });
+    }, []);
+
+    const hydrate = useCallback((result: NonNullable<WebpageGenerationState["result"]>) => {
+        setState({ status: "complete", progress: [], result });
+    }, []);
+
     const generate = useCallback(async (prompt: string) => {
         try {
             setState({ status: "generating", progress: [] });
@@ -63,5 +71,5 @@ export function useWebpageGeneration() {
         }
     }, []);
 
-    return { ...state, generate };
+    return { ...state, generate, reset, hydrate };
 }

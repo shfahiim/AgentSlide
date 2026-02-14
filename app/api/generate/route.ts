@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
         await writeFile(join(outputDir, "deck.json"), JSON.stringify(deckSpec, null, 2));
 
         let hasPptx = false;
+        const createdAt = Date.now();
         if (deckSpec.projectSpec.output !== "web") {
           send("progress", { step: "rendering", status: "running", message: "Building PPTX", timestamp: Date.now() });
           const buffer = await renderToPptx(deckSpec, getTheme(deckSpec.plan.suggestedTheme));
@@ -40,6 +41,25 @@ export async function POST(req: NextRequest) {
           hasPptx = true;
           send("progress", { step: "rendering", status: "done", message: "PPTX ready", timestamp: Date.now() });
         }
+
+        await writeFile(
+          join(outputDir, "meta.json"),
+          JSON.stringify(
+            {
+              id: deckId,
+              mode: "slides",
+              title: deckSpec.plan.title,
+              prompt,
+              createdAt,
+              slideCount: deckSpec.slides.length,
+              hasPptx,
+              hasWeb: deckSpec.projectSpec.output !== "pptx",
+            },
+            null,
+            2,
+          ),
+          "utf-8",
+        );
 
         send("complete", { deckId, title: deckSpec.plan.title, slideCount: deckSpec.slides.length, hasPptx, hasWeb: deckSpec.projectSpec.output !== "pptx" });
       } catch (error) {

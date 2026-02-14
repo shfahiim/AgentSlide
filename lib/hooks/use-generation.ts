@@ -13,6 +13,14 @@ export interface GenerationState {
 export function useGeneration() {
   const [state, setState] = useState<GenerationState>({ status: "idle", progress: [] });
 
+  const reset = useCallback(() => {
+    setState({ status: "idle", progress: [] });
+  }, []);
+
+  const hydrate = useCallback((result: NonNullable<GenerationState["result"]>) => {
+    setState({ status: "complete", progress: [], result });
+  }, []);
+
   const generate = useCallback(async (prompt: string, approvedPlan?: unknown) => {
     try {
       setState({ status: "generating", progress: [] });
@@ -63,5 +71,5 @@ export function useGeneration() {
     }
   }, []);
 
-  return { ...state, generate };
+  return { ...state, generate, reset, hydrate };
 }

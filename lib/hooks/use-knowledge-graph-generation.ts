@@ -17,6 +17,14 @@ export function useKnowledgeGraphGeneration() {
         progress: [],
     });
 
+    const reset = useCallback(() => {
+        setState({ status: "idle", progress: [] });
+    }, []);
+
+    const hydrate = useCallback((result: NonNullable<KnowledgeGraphGenerationState["result"]>) => {
+        setState({ status: "complete", progress: [], result });
+    }, []);
+
     const generate = useCallback(async (prompt: string, depth: number = 2) => {
         try {
             setState({ status: "generating", progress: [] });
@@ -86,5 +94,5 @@ export function useKnowledgeGraphGeneration() {
         }
     }, []);
 
-    return { ...state, generate };
+    return { ...state, generate, reset, hydrate };
 }

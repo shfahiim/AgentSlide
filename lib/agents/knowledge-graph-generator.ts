@@ -181,18 +181,16 @@ function renderKnowledgeGraphHtml(data: KnowledgeGraphData): string {
             }
         });
 
-    // Subtle, modern accent palette (used as small accents, not full fills)
+    // Minimal, monochrome palette (used as small accents)
     const CATEGORY_COLORS = [
-        "#60a5fa", // blue
-        "#a78bfa", // purple
-        "#f472b6", // pink
-        "#34d399", // green
-        "#fbbf24", // amber
-        "#fb7185", // rose
-        "#22d3ee", // cyan
-        "#c084fc", // violet
-        "#4ade80", // emerald
-        "#fdba74", // orange
+        "#f5f5f5",
+        "#d4d4d4",
+        "#a3a3a3",
+        "#737373",
+        "#e5e5e5",
+        "#bdbdbd",
+        "#8a8a8a",
+        "#5f5f5f",
     ];
 
     const categories = [...new Set(data.nodes.map((n) => n.category))];
@@ -219,10 +217,8 @@ function renderKnowledgeGraphHtml(data: KnowledgeGraphData): string {
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: 'Inter', -apple-system, sans-serif;
-    background: radial-gradient(1200px 800px at 20% 10%, rgba(99,102,241,0.18), transparent 60%),
-                radial-gradient(900px 650px at 90% 30%, rgba(34,211,238,0.12), transparent 60%),
-                #070a12;
-    color: #e5e7eb;
+    background: #050507;
+    color: #f5f5f5;
     overflow: hidden;
     height: 100vh;
     width: 100vw;
@@ -236,7 +232,7 @@ function renderKnowledgeGraphHtml(data: KnowledgeGraphData): string {
     align-items: center;
     justify-content: space-between;
     padding: 16px 24px;
-    background: linear-gradient(180deg, rgba(7,10,18,0.92) 0%, rgba(7,10,18,0) 100%);
+    background: linear-gradient(180deg, rgba(5,5,7,0.95) 0%, rgba(5,5,7,0) 100%);
     pointer-events: none;
   }
   #header > * { pointer-events: auto; }
@@ -244,13 +240,11 @@ function renderKnowledgeGraphHtml(data: KnowledgeGraphData): string {
     font-size: 18px;
     font-weight: 600;
     letter-spacing: -0.01em;
-    background: linear-gradient(135deg, #93c5fd, #a78bfa 55%, #22d3ee);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: #ffffff;
   }
   #header p {
     font-size: 12px;
-    color: rgba(229,231,235,0.55);
+    color: rgba(245,245,245,0.68);
     margin-top: 2px;
     max-width: min(70vw, 820px);
     line-height: 1.35;
@@ -269,7 +263,7 @@ function renderKnowledgeGraphHtml(data: KnowledgeGraphData): string {
     align-items: center;
     gap: 6px;
     font-size: 11px;
-    color: rgba(229,231,235,0.68);
+    color: rgba(245,245,245,0.68);
   }
   .legend-dot {
     width: 8px;
@@ -296,8 +290,8 @@ function renderKnowledgeGraphHtml(data: KnowledgeGraphData): string {
   #tooltip {
     position: fixed;
     display: none;
-    background: rgba(17, 24, 39, 0.92);
-    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(0, 0, 0, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 12px;
     padding: 14px 18px;
     max-width: 320px;
@@ -320,7 +314,7 @@ function renderKnowledgeGraphHtml(data: KnowledgeGraphData): string {
   }
   #tooltip .tt-desc {
     font-size: 12px;
-    color: rgba(229,231,235,0.75);
+    color: rgba(245,245,245,0.78);
     line-height: 1.5;
   }
 
@@ -335,10 +329,10 @@ function renderKnowledgeGraphHtml(data: KnowledgeGraphData): string {
     max-width: calc(100vw - 36px);
   }
   .ctrl-btn {
-    background: rgba(15, 23, 42, 0.72);
-    border: 1px solid rgba(148, 163, 184, 0.16);
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 8px;
-    color: rgba(229,231,235,0.78);
+    color: rgba(245,245,245,0.78);
     padding: 8px 12px;
     font-size: 12px;
     font-family: inherit;
@@ -347,9 +341,9 @@ function renderKnowledgeGraphHtml(data: KnowledgeGraphData): string {
     transition: all 0.2s;
   }
   .ctrl-btn:hover {
-    background: rgba(15, 23, 42, 0.9);
-    color: rgba(229,231,235,0.95);
-    border-color: rgba(99, 102, 241, 0.42);
+    background: rgba(0, 0, 0, 0.78);
+    color: rgba(255,255,255,0.95);
+    border-color: rgba(255, 255, 255, 0.26);
     transform: translateY(-1px);
   }
   .ctrl-btn:active { transform: translateY(0); }
@@ -359,10 +353,10 @@ function renderKnowledgeGraphHtml(data: KnowledgeGraphData): string {
     bottom: 18px;
     right: 18px;
     font-size: 11px;
-    color: rgba(229,231,235,0.45);
+    color: rgba(245,245,245,0.55);
     z-index: 100;
-    background: rgba(15, 23, 42, 0.55);
-    border: 1px solid rgba(148, 163, 184, 0.12);
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 10px;
     padding: 8px 10px;
     backdrop-filter: blur(10px);
@@ -371,26 +365,26 @@ function renderKnowledgeGraphHtml(data: KnowledgeGraphData): string {
   /* SVG styling */
   .link {
     fill: none;
-    stroke: rgba(148, 163, 184, 0.22);
+    stroke: rgba(255, 255, 255, 0.16);
     stroke-width: 1.25;
   }
   .link--active {
-    stroke: rgba(167, 139, 250, 0.55);
+    stroke: rgba(255, 255, 255, 0.42);
     stroke-width: 1.75;
   }
   .node {
     cursor: pointer;
   }
   .node__box {
-    fill: rgba(15, 23, 42, 0.92);
-    stroke: rgba(148, 163, 184, 0.18);
+    fill: rgba(0, 0, 0, 0.86);
+    stroke: rgba(255, 255, 255, 0.14);
     stroke-width: 1;
     rx: 10;
     ry: 10;
     filter: drop-shadow(0 10px 24px rgba(0,0,0,0.28));
   }
   .node__box--hover {
-    stroke: rgba(99, 102, 241, 0.55);
+    stroke: rgba(255, 255, 255, 0.38);
   }
   .node__accent {
     opacity: 0.95;
@@ -398,13 +392,13 @@ function renderKnowledgeGraphHtml(data: KnowledgeGraphData): string {
   .node__label {
     font-size: 13px;
     font-weight: 600;
-    fill: rgba(249, 250, 251, 0.95);
+    fill: rgba(255, 255, 255, 0.95);
     dominant-baseline: middle;
   }
   .node__meta {
     font-size: 11px;
     font-weight: 600;
-    fill: rgba(229, 231, 235, 0.55);
+    fill: rgba(245, 245, 245, 0.62);
     dominant-baseline: middle;
   }
 </style>
