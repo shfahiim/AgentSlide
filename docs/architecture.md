@@ -281,7 +281,7 @@ For factual topics (history, science, economics) where accuracy matters:
 | **Gemini tool calls** | Google Search + URL Context via Gemini's built-in tools | When available in deployment |
 | **App-side search** | Your app does web search → passes snippets to model | Full control, more work |
 
-**MVP recommendation**: Use Gemini's built-in knowledge + `sources: string[]` in SlideSpec for self-reported citations. Add Google Search grounding in v2.
+**MVP recommendation**: Use Gemini's built-in knowledge + `citations` on `SlideSpec` for self-reported sources (URLs optional). Add Google Search grounding in v2.
 
 ### Step D — Slide-by-Slide Generation → `SlideSpec[]`
 

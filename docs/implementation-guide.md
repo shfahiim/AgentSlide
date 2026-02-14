@@ -23,14 +23,15 @@
 
 ```bash
 npx -y create-next-app@latest ./ \
-  --ts --tailwind --eslint --app --src-dir=false \
+  --ts --tailwind --eslint --app \
   --import-alias "@/*" --use-pnpm
+# When prompted: use `src/` directory? No (to match this guide)
 ```
 
 Then install core dependencies:
 
 ```bash
-pnpm add @google/genai zod zod-to-json-schema pptxgenjs vega vega-lite vega-lite-api framer-motion
+pnpm add @google/genai zod zod-to-json-schema pptxgenjs vega vega-lite vega-embed vega-lite-api framer-motion
 ```
 
 Install Shadcn UI:
@@ -409,6 +410,7 @@ npx tsx scripts/test-gemini.ts
 ## Phase 3 — Agent Pipeline (Steps A → F)
 
 > **Goal**: Build each agent step as an independent module, then wire them together via the orchestrator.
+> **Note**: Rendering ("Step G") is deterministic and happens after the pipeline returns a validated `DeckSpec` (see Phase 4 + Phase 5).
 
 ### 3.1 — System Prompts
 
@@ -962,7 +964,7 @@ export async function renderToPptx(
   // Global settings
   pptx.author = "SlideMaker AI";
   pptx.title = deckSpec.plan.title;
-  pptx.layout = "LAYOUT_WIDE"; // 16:9
+  pptx.layout = "LAYOUT_WIDE"; // 16:9 (units are inches; ~13.33" × 7.5")
 
   // Define master slide with theme colors
   pptx.defineSlideMaster({
@@ -1015,7 +1017,7 @@ async function renderSlide(
 
 function renderTitleSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: ThemeSpec) {
   slide.addText(spec.title, {
-    x: "10%", y: "30%", w: "80%", h: "20%",
+    x: 1.33, y: 2.25, w: 10.67, h: 1.5,
     fontSize: 36, bold: true, align: "center",
     color: theme.colors.heading.replace("#", ""),
     fontFace: theme.fonts.heading,
@@ -1023,7 +1025,7 @@ function renderTitleSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: ThemeS
 
   if (spec.subtitle) {
     slide.addText(spec.subtitle, {
-      x: "15%", y: "55%", w: "70%", h: "10%",
+      x: 2.0, y: 4.13, w: 9.33, h: 0.75,
       fontSize: 18, align: "center",
       color: theme.colors.text.replace("#", ""),
       fontFace: theme.fonts.body,
@@ -1034,7 +1036,7 @@ function renderTitleSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: ThemeS
 function renderBulletSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: ThemeSpec) {
   // Title
   slide.addText(spec.title, {
-    x: "5%", y: "5%", w: "90%", h: "12%",
+    x: 0.67, y: 0.38, w: 12.0, h: 0.9,
     fontSize: 28, bold: true,
     color: theme.colors.heading.replace("#", ""),
     fontFace: theme.fonts.heading,
@@ -1052,7 +1054,7 @@ function renderBulletSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: Theme
   }));
 
   slide.addText(bulletItems, {
-    x: "8%", y: "22%", w: "84%", h: "70%",
+    x: 1.07, y: 1.65, w: 11.2, h: 5.25,
     valign: "top",
     lineSpacing: 28,
   });
@@ -1131,6 +1133,9 @@ import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import crypto from "crypto";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { prompt, approvedPlan } = body;
@@ -1164,6 +1169,8 @@ export async function POST(req: NextRequest) {
         const deckId = crypto.randomUUID();
 
         // Save DeckSpec for the web viewer
+        // NOTE: This writes to the local filesystem for local dev.
+        // In production/serverless, store to S3/GCS (or a DB) and return signed URLs.
         const outputDir = join(process.cwd(), "output", deckId);
         await mkdir(outputDir, { recursive: true });
         await writeFile(
@@ -1203,6 +1210,7 @@ export async function POST(req: NextRequest) {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
     },
   });
 }
@@ -1218,10 +1226,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import { join } from "path";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export async function GET(req: NextRequest) {
   const deckId = req.nextUrl.searchParams.get("id");
   if (!deckId) {
     return NextResponse.json({ error: "Missing deck ID" }, { status: 400 });
+  }
+  if (!UUID_RE.test(deckId)) {
+    return NextResponse.json({ error: "Invalid deck ID" }, { status: 400 });
   }
 
   const pptxPath = join(process.cwd(), "output", deckId, "presentation.pptx");
@@ -1250,11 +1267,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import { join } from "path";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params;
+  const { id } = params;
+  if (!UUID_RE.test(id)) {
+    return NextResponse.json({ error: "Invalid deck ID" }, { status: 400 });
+  }
   const deckPath = join(process.cwd(), "output", id, "deck.json");
 
   try {
@@ -1537,6 +1563,8 @@ The main prompt input page with:
 4. When the `planning` step completes, optionally shows `PlanPreview` for user to review/edit the plan before continuing
 5. On completion, shows download button (PPTX) and/or "View Presentation" link (Web)
 
+> **Implementation note**: If you want true plan review/edit *before* slide generation, split it into two requests (e.g. a `/api/plan` endpoint that runs intake+planning, then a second `/api/generate` call with `approvedPlan`). SSE can’t pause mid-stream to wait for user input.
+
 ### 8.4 — SSE Client Hook
 
 > **File**: `lib/hooks/use-generation.ts`
@@ -1574,6 +1602,16 @@ export function useGeneration() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt, approvedPlan }),
     });
+
+    if (!res.ok || !res.body) {
+      const errorText = await res.text().catch(() => "");
+      setState({
+        status: "error",
+        progress: [],
+        error: errorText || `Request failed (${res.status})`,
+      });
+      return;
+    }
 
     const reader = res.body!.getReader();
     const decoder = new TextDecoder();
