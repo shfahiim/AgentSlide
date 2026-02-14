@@ -18,7 +18,7 @@ import { GenerationState } from "@/lib/hooks/use-generation";
 import { WebpageGenerationState } from "@/lib/hooks/use-webpage-generation";
 import { KnowledgeGraphGenerationState } from "@/lib/hooks/use-knowledge-graph-generation";
 import { PipelineProgress, AgentStepName } from "@/lib/types";
-import { OutputMode } from "@/app/page";
+import { OutputMode } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Message {
@@ -270,6 +270,34 @@ export function ChatInterface({
             ]);
         }
     }, [slideGeneration.status, slideGeneration.error]);
+
+    useEffect(() => {
+        if (webpageGeneration.status === "error" && webpageGeneration.error) {
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: `error-${Date.now()}`,
+                    role: "assistant",
+                    content: `Something went wrong: ${webpageGeneration.error}`,
+                    type: "error",
+                },
+            ]);
+        }
+    }, [webpageGeneration.status, webpageGeneration.error]);
+
+    useEffect(() => {
+        if (knowledgeGraphGeneration.status === "error" && knowledgeGraphGeneration.error) {
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: `error-${Date.now()}`,
+                    role: "assistant",
+                    content: `Something went wrong: ${knowledgeGraphGeneration.error}`,
+                    type: "error",
+                },
+            ]);
+        }
+    }, [knowledgeGraphGeneration.status, knowledgeGraphGeneration.error]);
 
     const handleSend = async () => {
         if (!input.trim() || isGenerating) return;

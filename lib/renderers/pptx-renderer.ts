@@ -86,7 +86,7 @@ async function renderChartSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: 
     }));
 
     slide.addText(bulletItems, {
-      x: 0.67, y: 1.65, w: 5.8, h: 5.0,
+      x: 0.67, y: 1.65, w: 5.2, h: 5.0,
       valign: "top",
       lineSpacingMultiple: 1.4,
     });
@@ -96,15 +96,18 @@ async function renderChartSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: 
   const chart = spec.visuals.find((a) => a.type === "chart");
   if (chart && chart.type === "chart") {
     try {
-      const chartBuffer = await renderChartToPng(getVegaLiteSpec(chart), 1000, 600);
+      // Render at the same aspect ratio as the PPTX placement box to avoid stretching.
+      const chartW = 6.4;
+      const chartH = 4.0;
+      const chartBuffer = await renderChartToPng(getVegaLiteSpec(chart), 1600, 1000, theme);
       slide.addImage({
         data: `data:image/png;base64,${chartBuffer.toString("base64")}`,
-        x: 6.6, y: 1.7, w: 5.9, h: 3.6,
+        x: 6.25, y: 1.65, w: chartW, h: chartH,
       });
     } catch {
       // Chart render failed — add placeholder text
       slide.addText("Chart could not be rendered", {
-        x: 6.6, y: 3.0, w: 5.9, h: 1.0,
+        x: 6.25, y: 3.0, w: 6.4, h: 1.0,
         fontSize: 14, align: "center",
         color: unhash(theme.colors.text),
       });
@@ -159,7 +162,7 @@ async function renderFullVisualSlide(slide: PptxGenJS.Slide, spec: SlideSpec, th
   const chart = spec.visuals.find((a) => a.type === "chart");
   if (chart && chart.type === "chart") {
     try {
-      const chartBuffer = await renderChartToPng(getVegaLiteSpec(chart), 1600, 900);
+      const chartBuffer = await renderChartToPng(getVegaLiteSpec(chart), 1600, 900, theme);
       slide.addImage({
         data: `data:image/png;base64,${chartBuffer.toString("base64")}`,
         x: 0, y: 0, w: 13.33, h: 7.5,

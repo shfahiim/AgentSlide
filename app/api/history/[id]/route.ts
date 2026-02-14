@@ -1,4 +1,4 @@
-import { access, readFile } from "fs/promises";
+import { access, readFile, rm } from "fs/promises";
 import { join } from "path";
 import { NextResponse } from "next/server";
 
@@ -146,4 +146,26 @@ export async function GET(
   }
 
   return NextResponse.json({ error: "History item not found" }, { status: 404 });
+}
+
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  if (!UUID_RE.test(id)) {
+    return NextResponse.json({ error: "Invalid history ID" }, { status: 400 });
+  }
+
+  const dir = join(process.cwd(), "output", id);
+
+  try {
+    await rm(dir, { recursive: true, force: true });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return NextResponse.json(
+      { error: (e as Error).message ?? "Failed to delete history item" },
+      { status: 500 },
+    );
+  }
 }

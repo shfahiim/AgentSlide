@@ -3,18 +3,52 @@ import { z } from "zod";
 export const ChartAssetSchema = z.object({
   type: z.literal("chart"),
   chartType: z.enum(["bar", "line", "pie", "timeline", "area"]),
-  title: z.string(),
+  title: z.string().max(80),
   data: z.object({
-    labels: z.array(z.string()),
-    datasets: z.array(
-      z.object({
-        label: z.string(),
-        values: z.array(z.number()),
-      }),
-    ),
+    labels: z.array(z.string().max(15)).min(3).max(12),
+    datasets: z
+      .array(
+        z.object({
+          label: z.string().max(30),
+          values: z.array(z.number()),
+        }),
+      )
+      .min(1)
+      .max(3),
   }),
   vegaLiteSpec: z.record(z.any()).optional(),
 });
+
+export const ChartAssetStrictSchema = ChartAssetSchema.superRefine(
+  (asset, ctx) => {
+    const labelCount = asset.data.labels.length;
+    for (const [idx, ds] of asset.data.datasets.entries()) {
+      if (ds.values.length !== labelCount) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["data", "datasets", idx, "values"],
+          message: `Dataset values length (${ds.values.length}) must match labels length (${labelCount})`,
+        });
+      }
+      for (const [vIdx, v] of ds.values.entries()) {
+        if (!Number.isFinite(v)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["data", "datasets", idx, "values", vIdx],
+            message: "Chart values must be finite numbers",
+          });
+        }
+        if (asset.chartType === "pie" && v < 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["data", "datasets", idx, "values", vIdx],
+            message: "Pie chart values must be >= 0",
+          });
+        }
+      }
+    }
+  },
+);
 
 export const ImageAssetSchema = z.object({
   type: z.literal("image"),
@@ -55,6 +89,18 @@ export const STYLES = ["academic", "minimal", "modern", "corporate", "vibrant"] 
 export const OUTPUTS = ["pptx", "web", "both"] as const;
 export const LANGUAGES = ["en", "bn"] as const;
 export const CITATION_STYLES = ["footnote", "speaker_notes", "end_slide", "none"] as const;
+export const THEME_KEYS = [
+  "emerald-modern",
+  "ocean-blue",
+  "sunset-warm",
+  "royal-purple",
+  "rose-cream",
+  "slate-mono",
+  "modern-dark",
+  "minimal-light",
+  "corporate",
+  "vibrant",
+] as const;
 
 export const VISUAL_INTENTS = [
   "none",
@@ -101,31 +147,65 @@ export const DeckPlanSchema = z.object({
   title: z.string(),
   slideCount: z.number().min(3).max(30),
   slides: z.array(DeckPlanSlideSchema),
-  suggestedTheme: z.string(),
+  suggestedTheme: z.enum(THEME_KEYS).default("emerald-modern"),
 });
 
-export const SlideSpecSchema = z.object({
-  slideNumber: z.number(),
-  title: z.string().max(80),
-  subtitle: z.string().max(120).optional(),
-  bullets: z.array(z.string().max(100)).max(6),
-  speakerNotes: z.preprocess((value) => {
-    if (value === null || value === undefined) return undefined;
-    if (typeof value !== "string") return value;
+export const SlideSpecSchema = z
+  .object({
+    slideNumber: z.number(),
+    title: z.string().max(80),
+    subtitle: z.string().max(120).optional(),
+    bullets: z.array(z.string().max(100)).max(6),
+    speakerNotes: z.preprocess((value) => {
+      if (value === null || value === undefined) return undefined;
+      if (typeof value !== "string") return value;
 
-    const normalized = value.trim().replace(/\s+/g, " ");
-    if (!normalized) return undefined;
-    if (normalized.length <= 500) return normalized;
+      const normalized = value.trim().replace(/\s+/g, " ");
+      if (!normalized) return undefined;
+      if (normalized.length <= 500) return normalized;
 
-    const slice = normalized.slice(0, 499);
-    const lastSpace = slice.lastIndexOf(" ");
-    const cut = lastSpace > 300 ? slice.slice(0, lastSpace) : slice;
-    return `${cut.trimEnd()}…`;
-  }, z.string().max(500).optional()),
-  layout: z.enum(LAYOUTS),
-  visuals: z.array(AssetSpecSchema).max(3),
-  citations: z.array(CitationSchema).optional(),
-});
+      const slice = normalized.slice(0, 499);
+      const lastSpace = slice.lastIndexOf(" ");
+      const cut = lastSpace > 300 ? slice.slice(0, lastSpace) : slice;
+      return `${cut.trimEnd()}…`;
+    }, z.string().max(500).optional()),
+    layout: z.enum(LAYOUTS),
+    visuals: z.array(AssetSpecSchema).max(3),
+    citations: z.array(CitationSchema).optional(),
+  })
+  .superRefine((slide, ctx) => {
+    for (const [idx, asset] of slide.visuals.entries()) {
+      if (asset.type !== "chart") continue;
+
+      const labelCount = asset.data.labels.length;
+      for (const [dsIdx, ds] of asset.data.datasets.entries()) {
+        if (ds.values.length !== labelCount) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["visuals", idx, "data", "datasets", dsIdx, "values"],
+            message: `Dataset values length (${ds.values.length}) must match labels length (${labelCount})`,
+          });
+        }
+
+        for (const [vIdx, v] of ds.values.entries()) {
+          if (!Number.isFinite(v)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["visuals", idx, "data", "datasets", dsIdx, "values", vIdx],
+              message: "Chart values must be finite numbers",
+            });
+          }
+          if (asset.chartType === "pie" && v < 0) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["visuals", idx, "data", "datasets", dsIdx, "values", vIdx],
+              message: "Pie chart values must be >= 0",
+            });
+          }
+        }
+      }
+    }
+  });
 
 export const DeckSpecSchema = z.object({
   projectSpec: ProjectSpecSchema,

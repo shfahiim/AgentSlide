@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { PipelineProgress } from "@/lib/types";
+import { createSseParser } from "@/lib/client/sse";
 
 export interface WebpageGenerationState {
     status: "idle" | "generating" | "complete" | "error";
@@ -38,34 +39,30 @@ export function useWebpageGeneration() {
 
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
-            let buffer = "";
-            let currentEvent = "";
+            const parser = createSseParser((event, data) => {
+                if (event === "progress") {
+                    setState((prev) => ({
+                        ...prev,
+                        progress: [...prev.progress, data as PipelineProgress],
+                    }));
+                } else if (event === "complete") {
+                    setState((prev) => ({
+                        ...prev,
+                        status: "complete",
+                        result: data as WebpageGenerationState["result"],
+                    }));
+                } else if (event === "error") {
+                    const message = (data as { message?: string } | null)?.message ?? "Unknown error";
+                    setState((prev) => ({ ...prev, status: "error", error: message }));
+                }
+            });
 
             while (true) {
                 const { value, done } = await reader.read();
                 if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-
-                const chunks = buffer.split("\n\n");
-                buffer = chunks.pop() ?? "";
-
-                for (const chunk of chunks) {
-                    const lines = chunk.split("\n");
-                    for (const line of lines) {
-                        if (line.startsWith("event: ")) currentEvent = line.slice(7);
-                        if (line.startsWith("data: ")) {
-                            const data = JSON.parse(line.slice(6));
-                            if (currentEvent === "progress") {
-                                setState((prev) => ({ ...prev, progress: [...prev.progress, data] }));
-                            } else if (currentEvent === "complete") {
-                                setState((prev) => ({ ...prev, status: "complete", result: data }));
-                            } else if (currentEvent === "error") {
-                                setState((prev) => ({ ...prev, status: "error", error: data.message }));
-                            }
-                        }
-                    }
-                }
+                parser.consumeChunk(decoder.decode(value, { stream: true }));
             }
+            parser.flush();
         } catch (error) {
             setState({ status: "error", progress: [], error: (error as Error).message });
         }

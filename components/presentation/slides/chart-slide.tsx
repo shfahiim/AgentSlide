@@ -47,8 +47,16 @@ export function ChartSlide({ slide }: { slide: SlideSpec }) {
       </div>
 
       <motion.div
-        className="h-[420px] rounded-xl p-4"
-        style={{ backgroundColor: "var(--slide-surface)" }}
+        className="h-[420px] overflow-hidden"
+        style={{
+          background:
+            "linear-gradient(180deg, color-mix(in srgb, var(--slide-surface) 75%, white 25%) 0%, var(--slide-surface) 100%)",
+          border: "1px solid color-mix(in srgb, var(--slide-text) 10%, transparent)",
+          borderRadius: "calc(var(--slide-radius) + 10px)",
+          padding: "18px",
+          boxShadow:
+            "0 18px 40px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6)",
+        }}
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.4, duration: 0.5 }}

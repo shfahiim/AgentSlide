@@ -7,18 +7,29 @@ import {
     ChevronRight,
     Loader2,
     ExternalLink,
+    Check,
+    X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { DeckSpec } from "@/lib/types";
+import { AgentStepName, DeckSpec, OutputMode, PipelineProgress } from "@/lib/types";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { SlideRenderer } from "@/components/presentation/slide-renderer";
 import { GenerationState } from "@/lib/hooks/use-generation";
 import { WebpageGenerationState } from "@/lib/hooks/use-webpage-generation";
 import { KnowledgeGraphGenerationState } from "@/lib/hooks/use-knowledge-graph-generation";
-import { OutputMode } from "@/app/page";
 import Link from "next/link";
 import { useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+
+const PIPELINE_STEPS: Array<{ key: AgentStepName; label: string }> = [
+    { key: "intake", label: "Intake" },
+    { key: "planning", label: "Planning" },
+    { key: "research", label: "Research" },
+    { key: "generation", label: "Drafting" },
+    { key: "assets", label: "Assets" },
+    { key: "qa", label: "QA" },
+    { key: "rendering", label: "Rendering" },
+];
 
 interface PreviewPanelProps {
     mode: OutputMode;
@@ -64,6 +75,26 @@ export function PreviewPanel({
         if (mode === "knowledge-graph") return kgHtml;
         return undefined;
     }, [mode, webpageHtml, kgHtml]);
+
+    const progressByStep = useMemo(() => {
+        const map = new Map<AgentStepName, PipelineProgress>();
+        for (const p of currentGen.progress) map.set(p.step, p);
+        return map;
+    }, [currentGen.progress]);
+
+    const recentMessages = useMemo(() => {
+        const msgs = currentGen.progress
+            .map((p) => p.message)
+            .filter(Boolean);
+        const deduped: string[] = [];
+        for (let i = msgs.length - 1; i >= 0; i--) {
+            const m = msgs[i];
+            if (deduped[0] === m) continue;
+            deduped.unshift(m);
+            if (deduped.length >= 3) break;
+        }
+        return deduped;
+    }, [currentGen.progress]);
 
     const handleDownloadHtml = () => {
         const html = mode === "webpage" ? webpageHtml : kgHtml;
@@ -149,24 +180,185 @@ export function PreviewPanel({
             <div className="flex-1 overflow-hidden bg-zinc-50/30 flex flex-col items-center justify-center relative">
                 <AnimatePresence mode="wait">
                     {isGenerating ? (
-                        <motion.div 
+                        <motion.div
                             key="generating"
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 1.05 }}
-                            className="flex flex-col items-center gap-4 text-zinc-800"
+                            initial={{ opacity: 0, y: 12 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -12 }}
+                            className="w-full h-full p-8 flex items-center justify-center"
                         >
-                            <div className="relative">
-                                <Loader2 className="size-12 animate-spin text-emerald-500/20" />
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className="size-2 bg-emerald-500 rounded-full animate-pulse" />
+                            <div className="w-full max-w-5xl">
+                                <div className="flex flex-col lg:flex-row items-stretch gap-6">
+                                    {/* Preview skeleton */}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="rounded-[28px] border border-zinc-100 bg-white shadow-2xl shadow-zinc-900/10 overflow-hidden relative">
+                                            <div className="absolute inset-0 ai-shimmer opacity-60" />
+                                            <div className="relative p-6">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                                                        <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-400">
+                                                            AI agent generating
+                                                        </span>
+                                                    </div>
+                                                    <Loader2 className="size-4 animate-spin text-emerald-500/40" />
+                                                </div>
+
+                                                <motion.div
+                                                    className="mt-5 aspect-video rounded-2xl border border-zinc-100 bg-gradient-to-br from-white to-zinc-50/60 overflow-hidden relative"
+                                                    animate={{ y: [0, -2, 0] }}
+                                                    transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+                                                >
+                                                    <div className="absolute inset-0 ai-shimmer opacity-40" />
+
+                                                    {/* Mode-specific skeleton layout */}
+                                                    {mode === "slides" ? (
+                                                        <div className="relative p-6 h-full">
+                                                            <div className="h-5 w-2/3 rounded-lg bg-zinc-100" />
+                                                            <div className="mt-3 h-3 w-1/2 rounded-md bg-zinc-100/80" />
+                                                            <div className="mt-8 space-y-3">
+                                                                <div className="h-3 w-11/12 rounded-md bg-zinc-100/80" />
+                                                                <div className="h-3 w-10/12 rounded-md bg-zinc-100/70" />
+                                                                <div className="h-3 w-9/12 rounded-md bg-zinc-100/70" />
+                                                                <div className="h-3 w-8/12 rounded-md bg-zinc-100/60" />
+                                                            </div>
+                                                            <div className="absolute right-6 bottom-6 h-24 w-24 rounded-2xl bg-emerald-100/60 border border-emerald-200/60" />
+                                                        </div>
+                                                    ) : mode === "webpage" ? (
+                                                        <div className="relative p-5 h-full">
+                                                            <div className="h-8 rounded-xl border border-zinc-200/60 bg-white/80 flex items-center px-3 gap-2">
+                                                                <div className="size-2 rounded-full bg-zinc-200" />
+                                                                <div className="size-2 rounded-full bg-zinc-200" />
+                                                                <div className="size-2 rounded-full bg-zinc-200" />
+                                                                <div className="ml-3 h-3 w-2/3 rounded bg-zinc-100" />
+                                                            </div>
+                                                            <div className="mt-5 grid grid-cols-3 gap-4">
+                                                                <div className="col-span-2 h-28 rounded-2xl bg-zinc-100/80" />
+                                                                <div className="h-28 rounded-2xl bg-emerald-100/60 border border-emerald-200/60" />
+                                                                <div className="col-span-3 h-24 rounded-2xl bg-zinc-100/70" />
+                                                            </div>
+                                                            <div className="mt-5 space-y-3">
+                                                                <div className="h-3 w-11/12 rounded bg-zinc-100/70" />
+                                                                <div className="h-3 w-10/12 rounded bg-zinc-100/60" />
+                                                                <div className="h-3 w-9/12 rounded bg-zinc-100/60" />
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="relative p-6 h-full">
+                                                            <div className="h-5 w-1/2 rounded-lg bg-zinc-100" />
+                                                            <div className="mt-8 flex items-center justify-center h-[70%]">
+                                                                <div className="relative w-full h-full">
+                                                                    <div className="absolute left-[12%] top-[25%] size-12 rounded-2xl bg-emerald-100/70 border border-emerald-200/70" />
+                                                                    <div className="absolute left-[42%] top-[18%] size-10 rounded-2xl bg-zinc-100/80 border border-zinc-200/60" />
+                                                                    <div className="absolute left-[68%] top-[32%] size-14 rounded-2xl bg-emerald-100/60 border border-emerald-200/60" />
+                                                                    <div className="absolute left-[30%] top-[55%] size-11 rounded-2xl bg-zinc-100/70 border border-zinc-200/60" />
+                                                                    <div className="absolute left-[58%] top-[60%] size-10 rounded-2xl bg-zinc-100/70 border border-zinc-200/60" />
+                                                                    <div className="absolute inset-0 opacity-40">
+                                                                        <div className="absolute left-[18%] top-[31%] h-px w-[28%] bg-emerald-300/60" />
+                                                                        <div className="absolute left-[50%] top-[28%] h-px w-[22%] bg-emerald-300/60" />
+                                                                        <div className="absolute left-[36%] top-[61%] h-px w-[24%] bg-emerald-300/50" />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </motion.div>
+
+                                                <div className="mt-5">
+                                                    <p className="text-sm font-semibold text-zinc-900 truncate">
+                                                        {currentGen.progress.length > 0
+                                                            ? currentGen.progress[currentGen.progress.length - 1].message
+                                                            : "Starting pipeline…"}
+                                                    </p>
+                                                    {recentMessages.length > 1 && (
+                                                        <div className="mt-2 space-y-1">
+                                                            {recentMessages.slice(0, -1).map((m) => (
+                                                                <p
+                                                                    key={m}
+                                                                    className="text-xs text-zinc-500 truncate"
+                                                                >
+                                                                    {m}
+                                                                </p>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Pipeline */}
+                                    <div className="lg:w-80 w-full shrink-0">
+                                        <div className="rounded-[28px] border border-zinc-100 bg-white shadow-xl shadow-zinc-900/5 overflow-hidden">
+                                            <div className="p-6">
+                                                <div className="flex items-center justify-between">
+                                                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-400">
+                                                        Pipeline
+                                                    </p>
+                                                    <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-emerald-600">
+                                                        Live
+                                                    </span>
+                                                </div>
+
+                                                <div className="mt-4 space-y-2">
+                                                    {PIPELINE_STEPS.map(({ key, label }) => {
+                                                        const p = progressByStep.get(key);
+                                                        const status = p?.status ?? "pending";
+                                                        const isRunning = status === "running";
+                                                        const isDone = status === "done";
+                                                        const isError = status === "error";
+
+                                                        return (
+                                                            <div
+                                                                key={key}
+                                                                className={cn(
+                                                                    "flex items-center gap-3 rounded-2xl px-3 py-2 border",
+                                                                    isRunning
+                                                                        ? "border-emerald-200 bg-emerald-50"
+                                                                        : isDone
+                                                                            ? "border-zinc-100 bg-white"
+                                                                            : isError
+                                                                                ? "border-red-200 bg-red-50"
+                                                                                : "border-transparent bg-zinc-50/60"
+                                                                )}
+                                                            >
+                                                                <div className="shrink-0">
+                                                                    {isDone ? (
+                                                                        <div className="size-7 rounded-xl bg-emerald-500/10 text-emerald-700 flex items-center justify-center">
+                                                                            <Check className="size-4" />
+                                                                        </div>
+                                                                    ) : isError ? (
+                                                                        <div className="size-7 rounded-xl bg-red-500/10 text-red-700 flex items-center justify-center">
+                                                                            <X className="size-4" />
+                                                                        </div>
+                                                                    ) : isRunning ? (
+                                                                        <div className="size-7 rounded-xl bg-emerald-500/10 text-emerald-700 flex items-center justify-center">
+                                                                            <Loader2 className="size-4 animate-spin" />
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="size-7 rounded-xl bg-zinc-200/60 text-zinc-500 flex items-center justify-center">
+                                                                            <div className="size-1.5 rounded-full bg-zinc-500/40" />
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+
+                                                                <div className="min-w-0 flex-1">
+                                                                    <p className="text-sm font-semibold text-zinc-900">
+                                                                        {label}
+                                                                    </p>
+                                                                    <p className="text-xs text-zinc-500 truncate">
+                                                                        {p?.detail ?? p?.message ?? (isRunning ? "Working…" : "Pending")}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">
-                                {currentGen.progress.length > 0
-                                    ? currentGen.progress[currentGen.progress.length - 1].message
-                                    : "Starting pipeline..."}
-                            </p>
                         </motion.div>
                     ) : mode === "slides" && slides.length > 0 && currentSlide ? (
                         <motion.div 
@@ -202,22 +394,22 @@ export function PreviewPanel({
                         />
                     ) : (
                         /* Empty State */
-                        <motion.div 
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            className="bg-white aspect-video w-full max-w-2xl mx-8 shadow-xl shadow-zinc-900/5 border border-zinc-50 rounded-[32px] flex flex-col items-center justify-center text-zinc-300"
-                        >
-                            <div className="mb-6 p-6 rounded-3xl bg-zinc-50/50 border border-zinc-100">
-                                <div className="size-12 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 animate-pulse opacity-20" />
+                        <div className="relative bg-white aspect-video w-full max-w-2xl mx-8 shadow-xl shadow-zinc-900/5 border border-zinc-100 rounded-[32px] overflow-hidden flex items-center justify-center">
+                            <div aria-hidden className="pointer-events-none absolute inset-0">
+                                <div className="absolute inset-0 bg-[radial-gradient(60%_60%_at_50%_40%,rgba(244,244,245,0.9)_0%,rgba(255,255,255,0)_70%)]" />
+                                <div className="absolute left-0 right-0 top-1/2 h-[2px] bg-zinc-200/80" />
+                                <div className="absolute top-0 bottom-0 left-1/2 w-[2px] bg-zinc-200/70" />
+                                <div className="absolute left-1/2 top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-zinc-300 ring-4 ring-white" />
+                                <div className="absolute -left-24 -top-24 size-64 rounded-full border-2 border-zinc-200/70" />
+                                <div className="absolute -right-28 -bottom-28 size-72 rounded-full border-2 border-zinc-200/70" />
                             </div>
-                            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-center px-8">
-                                {mode === "slides"
-                                    ? "Describe topic to generate slides"
-                                    : mode === "webpage"
-                                        ? "Describe topic to generate webpage"
-                                        : "Describe topic to generate graph"}
-                            </p>
-                        </motion.div>
+
+                            <div className="relative px-5 py-3 rounded-2xl bg-white/80 backdrop-blur-sm border border-zinc-100 shadow-sm">
+                                <p className="text-sm font-semibold text-zinc-900 text-center">
+                                    Preview shows up here
+                                </p>
+                            </div>
+                        </div>
                     )}
                 </AnimatePresence>
             </div>

@@ -14,6 +14,71 @@ export const THEMES: Record<string, ThemeSpec> = {
     fonts: { heading: "Inter", body: "Inter" },
     borderRadius: 16,
   },
+  "ocean-blue": {
+    name: "Ocean Blue",
+    colors: {
+      background: "#f8fafc",
+      surface: "#ffffff",
+      text: "#0f172a",
+      heading: "#0b3a6b",
+      accent: "#0284c7",
+      accentSecondary: "#38bdf8",
+    },
+    fonts: { heading: "Inter", body: "Inter" },
+    borderRadius: 14,
+  },
+  "sunset-warm": {
+    name: "Sunset Warm",
+    colors: {
+      background: "#fff7ed",
+      surface: "#ffffff",
+      text: "#1f2937",
+      heading: "#9a3412",
+      accent: "#f97316",
+      accentSecondary: "#fb7185",
+    },
+    fonts: { heading: "Inter", body: "Inter" },
+    borderRadius: 16,
+  },
+  "royal-purple": {
+    name: "Royal Purple",
+    colors: {
+      background: "#faf5ff",
+      surface: "#ffffff",
+      text: "#1f2937",
+      heading: "#4c1d95",
+      accent: "#7c3aed",
+      accentSecondary: "#a78bfa",
+    },
+    fonts: { heading: "Inter", body: "Inter" },
+    borderRadius: 14,
+  },
+  "rose-cream": {
+    name: "Rose Cream",
+    colors: {
+      background: "#fff1f2",
+      surface: "#ffffff",
+      text: "#1f2937",
+      heading: "#9f1239",
+      accent: "#e11d48",
+      accentSecondary: "#fb7185",
+    },
+    fonts: { heading: "Inter", body: "Inter" },
+    borderRadius: 16,
+  },
+  "slate-mono": {
+    name: "Slate Mono",
+    colors: {
+      background: "#ffffff",
+      surface: "#f8fafc",
+      text: "#0f172a",
+      heading: "#0f172a",
+      accent: "#334155",
+      accentSecondary: "#64748b",
+    },
+    fonts: { heading: "Inter", body: "Inter" },
+    borderRadius: 10,
+  },
   "modern-dark": {
     name: "Modern Dark",
     colors: {
@@ -75,7 +140,21 @@ export function getTheme(name?: string): ThemeSpec {
   if (!name) return THEMES["emerald-modern"];
   // Fuzzy match: "dark" → "modern-dark", "Modern Dark" → "modern-dark"
   const normalized = name.toLowerCase().replace(/\s+/g, "-");
-  return THEMES[normalized] ?? THEMES["emerald-modern"];
+  if (THEMES[normalized]) return THEMES[normalized];
+
+  // Keyword fallback (helps older saved decks with free-text theme names)
+  if (normalized.includes("dark")) return THEMES["modern-dark"];
+  if (normalized.includes("minimal") || normalized.includes("light")) return THEMES["minimal-light"];
+  if (normalized.includes("corporate") || normalized.includes("finance") || normalized.includes("business")) return THEMES["corporate"];
+  if (normalized.includes("vibrant") || normalized.includes("neon")) return THEMES["vibrant"];
+  if (normalized.includes("purple")) return THEMES["royal-purple"];
+  if (normalized.includes("blue") || normalized.includes("ocean")) return THEMES["ocean-blue"];
+  if (normalized.includes("sunset") || normalized.includes("warm") || normalized.includes("orange")) return THEMES["sunset-warm"];
+  if (normalized.includes("rose") || normalized.includes("pink")) return THEMES["rose-cream"];
+  if (normalized.includes("slate") || normalized.includes("mono") || normalized.includes("gray") || normalized.includes("grey")) return THEMES["slate-mono"];
+  if (normalized.includes("emerald") || normalized.includes("green")) return THEMES["emerald-modern"];
+
+  return THEMES["emerald-modern"];
 }
 
 /**

@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
 import { NextRequest } from "next/server";
 import { runKnowledgeGraphPipeline } from "@/lib/agents/knowledge-graph-generator";
+import { KNOWLEDGE_GRAPH_RENDERER_VERSION } from "@/lib/renderers/knowledge-graph-renderer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,6 +56,11 @@ export async function POST(req: NextRequest) {
                             depth,
                             nodeCount: result.graphData.nodes.length,
                             edgeCount: result.graphData.edges.length,
+                            renderer: {
+                                version: KNOWLEDGE_GRAPH_RENDERER_VERSION,
+                                layout: "tree_lr",
+                                theme: "mono",
+                            },
                         },
                         null,
                         2
