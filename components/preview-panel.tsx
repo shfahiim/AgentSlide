@@ -17,6 +17,7 @@ import { SlideRenderer } from "@/components/presentation/slide-renderer";
 import { GenerationState } from "@/lib/hooks/use-generation";
 import { WebpageGenerationState } from "@/lib/hooks/use-webpage-generation";
 import { KnowledgeGraphGenerationState } from "@/lib/hooks/use-knowledge-graph-generation";
+import { StudyYtGenerationState } from "@/lib/hooks/use-study-yt-generation";
 import Link from "next/link";
 import { useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -38,6 +39,7 @@ interface PreviewPanelProps {
     knowledgeGraphGeneration: KnowledgeGraphGenerationState & {
         generate: (prompt: string, depth?: number) => Promise<void>;
     };
+    studyYtGeneration: StudyYtGenerationState & { generate: (urlOrId: string) => Promise<void> };
     deck: DeckSpec | null;
     currentSlideIndex: number;
     setCurrentSlideIndex: (index: number) => void;
@@ -49,6 +51,7 @@ export function PreviewPanel({
     slideGeneration,
     webpageGeneration,
     knowledgeGraphGeneration,
+    studyYtGeneration,
     deck,
     currentSlideIndex,
     setCurrentSlideIndex,
@@ -58,13 +61,19 @@ export function PreviewPanel({
     const currentSlide = slides[currentSlideIndex];
     const deckId = slideGeneration.result?.deckId;
     const webpageHtml = webpageGeneration.result?.html;
+    const webpageId = webpageGeneration.result?.pageId;
+    const studyHtml = studyYtGeneration.result?.html;
+    const studyPageId = studyYtGeneration.result?.pageId;
     const kgHtml = knowledgeGraphGeneration.result?.html;
+    const graphId = knowledgeGraphGeneration.result?.graphId;
 
     const currentGen =
         mode === "slides"
             ? slideGeneration
             : mode === "webpage"
                 ? webpageGeneration
+                : mode === "study-yt"
+                    ? studyYtGeneration
                 : knowledgeGraphGeneration;
 
     const isGenerating = currentGen.status === "generating";
@@ -72,9 +81,10 @@ export function PreviewPanel({
 
     const iframeSrcDoc = useMemo(() => {
         if (mode === "webpage") return webpageHtml;
+        if (mode === "study-yt") return studyHtml;
         if (mode === "knowledge-graph") return kgHtml;
         return undefined;
-    }, [mode, webpageHtml, kgHtml]);
+    }, [mode, webpageHtml, studyHtml, kgHtml]);
 
     const progressByStep = useMemo(() => {
         const map = new Map<AgentStepName, PipelineProgress>();
@@ -97,10 +107,13 @@ export function PreviewPanel({
     }, [currentGen.progress]);
 
     const handleDownloadHtml = () => {
-        const html = mode === "webpage" ? webpageHtml : kgHtml;
+        const html =
+            mode === "webpage" ? webpageHtml : mode === "study-yt" ? studyHtml : kgHtml;
         const title =
             mode === "webpage"
                 ? webpageGeneration.result?.title
+                : mode === "study-yt"
+                    ? studyYtGeneration.result?.title
                 : knowledgeGraphGeneration.result?.title;
 
         if (!html) return;
@@ -114,7 +127,12 @@ export function PreviewPanel({
     };
 
     const handleOpenInNewTab = () => {
-        const html = mode === "webpage" ? webpageHtml : kgHtml;
+        const id = mode === "webpage" ? webpageId : mode === "study-yt" ? studyPageId : graphId;
+        if (id) {
+            window.open(`/api/output-html?id=${encodeURIComponent(id)}`, "_blank");
+            return;
+        }
+        const html = mode === "webpage" ? webpageHtml : mode === "study-yt" ? studyHtml : kgHtml;
         if (!html) return;
         const blob = new Blob([html], { type: "text/html" });
         const url = URL.createObjectURL(blob);
@@ -126,14 +144,16 @@ export function PreviewPanel({
             {/* Toolbar */}
             <div className="h-14 border-b border-zinc-100 flex items-center justify-between px-6 bg-white shrink-0">
                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400">
-                    {mode === "slides" && slides.length > 0
-                        ? `Slide ${currentSlideIndex + 1} of ${slides.length}`
-                        : mode === "webpage" && isComplete
-                            ? "Webpage Preview"
-                            : mode === "knowledge-graph" && isComplete
-                                ? "Knowledge Graph Preview"
-                                : "Preview"}
-                </span>
+	                    {mode === "slides" && slides.length > 0
+	                        ? `Slide ${currentSlideIndex + 1} of ${slides.length}`
+	                        : mode === "webpage" && isComplete
+	                            ? "Webpage Preview"
+	                            : mode === "study-yt" && isComplete
+	                                ? "Study Preview"
+	                            : mode === "knowledge-graph" && isComplete
+	                                ? "Knowledge Graph Preview"
+	                                : "Preview"}
+	                </span>
                 <div className="flex items-center gap-2">
                     {mode === "slides" && deckId && slideGeneration.result?.hasPptx && (
                         <button
@@ -155,10 +175,10 @@ export function PreviewPanel({
                         </Link>
                     )}
 
-                    {(mode === "webpage" || mode === "knowledge-graph") && iframeSrcDoc && (
-                        <>
-                            <button
-                                onClick={handleDownloadHtml}
+	                    {(mode === "webpage" || mode === "study-yt" || mode === "knowledge-graph") && iframeSrcDoc && (
+	                        <>
+	                            <button
+	                                onClick={handleDownloadHtml}
                                 className="p-2 hover:bg-zinc-100 rounded-lg text-zinc-500 transition-colors"
                                 title="Download HTML"
                             >
@@ -224,10 +244,10 @@ export function PreviewPanel({
                                                             </div>
                                                             <div className="absolute right-6 bottom-6 h-24 w-24 rounded-2xl bg-emerald-100/60 border border-emerald-200/60" />
                                                         </div>
-                                                    ) : mode === "webpage" ? (
-                                                        <div className="relative p-5 h-full">
-                                                            <div className="h-8 rounded-xl border border-zinc-200/60 bg-white/80 flex items-center px-3 gap-2">
-                                                                <div className="size-2 rounded-full bg-zinc-200" />
+	                                                    ) : mode === "webpage" || mode === "study-yt" ? (
+	                                                        <div className="relative p-5 h-full">
+	                                                            <div className="h-8 rounded-xl border border-zinc-200/60 bg-white/80 flex items-center px-3 gap-2">
+	                                                                <div className="size-2 rounded-full bg-zinc-200" />
                                                                 <div className="size-2 rounded-full bg-zinc-200" />
                                                                 <div className="size-2 rounded-full bg-zinc-200" />
                                                                 <div className="ml-3 h-3 w-2/3 rounded bg-zinc-100" />
@@ -382,10 +402,10 @@ export function PreviewPanel({
                                 </ErrorBoundary>
                             </div>
                         </motion.div>
-                    ) : (mode === "webpage" || mode === "knowledge-graph") && iframeSrcDoc ? (
-                        <motion.iframe
-                            key="iframe-result"
-                            initial={{ opacity: 0 }}
+	                    ) : (mode === "webpage" || mode === "study-yt" || mode === "knowledge-graph") && iframeSrcDoc ? (
+	                        <motion.iframe
+	                            key="iframe-result"
+	                            initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             srcDoc={iframeSrcDoc}
                             className="w-full h-full border-0 bg-white"

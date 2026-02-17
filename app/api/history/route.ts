@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-type HistoryMode = "slides" | "webpage" | "knowledge-graph";
+type HistoryMode = "slides" | "webpage" | "knowledge-graph" | "study-yt";
 
 interface HistoryListItem {
   id: string;
@@ -79,6 +79,7 @@ export async function GET() {
             edgeCount?: number;
             depth?: number;
             hasPptx?: boolean;
+            videoId?: string;
           }
         | null;
 
@@ -92,6 +93,10 @@ export async function GET() {
               ? typeof meta.nodeCount === "number" && typeof meta.edgeCount === "number"
                 ? `${meta.nodeCount} nodes · ${meta.edgeCount} edges${typeof meta.depth === "number" ? ` · depth ${meta.depth}` : ""}`
                 : undefined
+              : meta.mode === "study-yt"
+                ? meta.videoId
+                  ? `YouTube · ${meta.videoId}`
+                  : "YouTube"
               : undefined;
 
         items.push({
@@ -158,4 +163,3 @@ export async function GET() {
   items.sort((a, b) => b.createdAt - a.createdAt);
   return NextResponse.json({ items });
 }
-

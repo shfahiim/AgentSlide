@@ -57,6 +57,30 @@ body {
   animation: ai-shimmer 2.2s ease-in-out infinite;
 }
 
+@keyframes gradient-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.new-plus-gradient {
+  background: linear-gradient(
+    120deg,
+    #0ea5e9 0%,
+    #10b981 35%,
+    #22c55e 65%,
+    #14b8a6 100%
+  );
+  background-size: 220% 220%;
+  animation: gradient-flow 3.5s ease infinite;
+}
+
 /* Vega tooltip (used in slide preview charts) */
 .vega-tooltip {
   font-family: var(--font-body);

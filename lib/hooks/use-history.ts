@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-export type HistoryMode = "slides" | "webpage" | "knowledge-graph";
+export type HistoryMode = "slides" | "webpage" | "knowledge-graph" | "study-yt";
 
 export interface HistoryListItem {
   id: string;
@@ -40,4 +40,3 @@ export function useHistory() {
 
   return { items, status, error, refresh };
 }
-

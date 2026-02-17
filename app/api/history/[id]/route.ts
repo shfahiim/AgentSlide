@@ -96,6 +96,25 @@ export async function GET(
         },
       });
     }
+
+    if (meta?.mode === "study-yt" && (await fileExists(pagePath))) {
+      const html = await readFile(pagePath, "utf-8").catch(() => "");
+      const metaText = await readFile(metaPath, "utf-8").catch(() => "");
+      const fullMeta = safeJsonParse(metaText) as
+        | { videoId?: string; videoUrl?: string; title?: string }
+        | null;
+
+      return NextResponse.json({
+        mode: "study-yt",
+        result: {
+          pageId: id,
+          title: extractHtmlTitle(html) ?? fullMeta?.title ?? "Untitled study page",
+          html,
+          videoId: fullMeta?.videoId,
+          videoUrl: fullMeta?.videoUrl,
+        },
+      });
+    }
   }
 
   // Fallback detection (older outputs)

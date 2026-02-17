@@ -26,3 +26,13 @@ pnpm-debug.log*
 .vercel
 coverage
 .DS_Store
+# Python virtual environments
+scripts/.venv-ytt/
+.venv/
+venv/
+ENV/
+
+# Temporary/Generated scripts
+*-player-script.js
+
+

@@ -4,7 +4,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { SlideSpec } from "@/lib/types";
 import { BulletSlide } from "./slides/bullet-slide";
 import { ChartSlide } from "./slides/chart-slide";
+import { TwoColumnSlide } from "./slides/two-column-slide";
 import { TitleSlide } from "./slides/title-slide";
+import { FullVisualSlide } from "./slides/full-visual-slide";
+import { BigNumberSlide } from "./slides/big-number-slide";
 
 interface SlideRendererProps {
   slide: SlideSpec;
@@ -19,10 +22,12 @@ function getSlideComponent(layout: SlideSpec["layout"]) {
       return ChartSlide;
     case "bullets":
       return BulletSlide;
-    // v2 layouts — fallback to bullets for now
     case "two_column":
+      return TwoColumnSlide;
     case "full_visual":
+      return FullVisualSlide;
     case "big_number":
+      return BigNumberSlide;
     default:
       return BulletSlide;
   }

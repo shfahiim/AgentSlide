@@ -11,12 +11,15 @@ import {
     Presentation,
     Globe,
     Network,
+    Youtube,
+    Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
 import { GenerationState } from "@/lib/hooks/use-generation";
 import { WebpageGenerationState } from "@/lib/hooks/use-webpage-generation";
 import { KnowledgeGraphGenerationState } from "@/lib/hooks/use-knowledge-graph-generation";
+import { StudyYtGenerationState } from "@/lib/hooks/use-study-yt-generation";
 import { PipelineProgress, AgentStepName } from "@/lib/types";
 import { OutputMode } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
@@ -26,10 +29,12 @@ interface Message {
     role: "user" | "assistant";
     content: string;
     type?: "text" | "progress" | "result" | "error";
+    links?: Array<{ label: string; href: string }>;
 }
 
 interface ChatInterfaceProps {
     sessionKey: string;
+    initialUserPrompt?: string;
     mode: OutputMode;
     setMode: (mode: OutputMode) => void;
     slideGeneration: GenerationState & { generate: (prompt: string) => Promise<void> };
@@ -37,6 +42,7 @@ interface ChatInterfaceProps {
     knowledgeGraphGeneration: KnowledgeGraphGenerationState & {
         generate: (prompt: string, depth?: number) => Promise<void>;
     };
+    studyYtGeneration: StudyYtGenerationState & { generate: (urlOrId: string) => Promise<void> };
 }
 
 const STEP_LABELS: Record<AgentStepName, string> = {
@@ -146,50 +152,51 @@ function ProgressTracker({ progress }: { progress: PipelineProgress[] }) {
 
 export function ChatInterface({
     sessionKey,
+    initialUserPrompt,
     mode,
     setMode,
     slideGeneration,
     webpageGeneration,
     knowledgeGraphGeneration,
-}: ChatInterfaceProps) {
-    const [input, setInput] = useState("");
-    const [kgDepth, setKgDepth] = useState(2);
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            id: "welcome",
-            role: "assistant",
-            content:
-                "Hello! I'm PresentAI — your presentation architect. Describe any topic, and I'll build a slide deck, a visual webpage, or an interactive knowledge graph for you. Choose your output mode below.",
-        },
-    ]);
-    const messagesEndRef = useRef<HTMLDivElement>(null);
-    const hasAddedResult = useRef(false);
+    studyYtGeneration,
+		}: ChatInterfaceProps) {
+	    const [input, setInput] = useState("");
+	    const [kgDepth, setKgDepth] = useState(2);
+	    const [messages, setMessages] = useState<Message[]>([]);
+	    const messagesEndRef = useRef<HTMLDivElement>(null);
+	    const hasAddedResult = useRef(false);
 
     // Reset chat when the user starts a new session or loads history
     useEffect(() => {
         setInput("");
         setKgDepth(2);
-        setMessages([
-            {
-                id: "welcome",
-                role: "assistant",
-                content:
-                    "Hello! I'm PresentAI — your presentation architect. Describe any topic, and I'll build a slide deck, a visual webpage, or an interactive knowledge graph for you. Choose your output mode below.",
-            },
-        ]);
+        setMessages(
+            initialUserPrompt
+                ? [
+                    {
+                        id: "history-prompt",
+                        role: "user",
+                        content: initialUserPrompt,
+                    },
+                ]
+                : []
+        );
         hasAddedResult.current = false;
-    }, [sessionKey]);
+    }, [sessionKey, initialUserPrompt]);
 
     const currentGen =
         mode === "slides"
             ? slideGeneration
             : mode === "webpage"
                 ? webpageGeneration
+                : mode === "study-yt"
+                    ? studyYtGeneration
                 : knowledgeGraphGeneration;
     const isGenerating =
         slideGeneration.status === "generating" ||
         webpageGeneration.status === "generating" ||
-        knowledgeGraphGeneration.status === "generating";
+        knowledgeGraphGeneration.status === "generating" ||
+        studyYtGeneration.status === "generating";
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -204,13 +211,17 @@ export function ChatInterface({
         if (slideGeneration.status === "complete" && slideGeneration.result && !hasAddedResult.current) {
             hasAddedResult.current = true;
             const r = slideGeneration.result;
+            const links: Array<{ label: string; href: string }> = [];
+            if (r.hasWeb) links.push({ label: "Open", href: `/presentation/${r.deckId}` });
+            if (r.hasPptx) links.push({ label: "Download PPTX", href: `/api/export?id=${r.deckId}` });
             setMessages((prev) => [
                 ...prev,
                 {
                     id: `result-${Date.now()}`,
                     role: "assistant",
-                    content: `Done! "${r.title}" — ${r.slideCount} slides generated. Check the preview panel on the right.${r.hasPptx ? " PPTX is ready for download." : ""}`,
+                    content: `"${r.title}" is ready.`,
                     type: "result",
+                    links,
                 },
             ]);
         }
@@ -226,8 +237,9 @@ export function ChatInterface({
                 {
                     id: `result-${Date.now()}`,
                     role: "assistant",
-                    content: `Done! Your visual webpage "${r.title}" is ready. Check the preview panel on the right — it's a fully interactive page with charts, infographics, and animations.`,
+                    content: `"${r.title}" is ready.`,
                     type: "result",
+                    links: [{ label: "Open", href: `/api/output-html?id=${r.pageId}` }],
                 },
             ]);
         }
@@ -249,12 +261,31 @@ export function ChatInterface({
                 {
                     id: `result-${Date.now()}`,
                     role: "assistant",
-                    content: `Done! Knowledge graph "${r.title}" is ready — ${nodeCount} concepts, ${edgeCount} connections. Explore it in the preview panel. You can drag nodes, zoom, and hover for details.`,
+                    content: `"${r.title}" is ready (${nodeCount} nodes, ${edgeCount} edges).`,
                     type: "result",
+                    links: [{ label: "Open", href: `/api/output-html?id=${r.graphId}` }],
                 },
             ]);
         }
     }, [knowledgeGraphGeneration.status, knowledgeGraphGeneration.result]);
+
+    // Study YT result
+    useEffect(() => {
+        if (studyYtGeneration.status === "complete" && studyYtGeneration.result && !hasAddedResult.current) {
+            hasAddedResult.current = true;
+            const r = studyYtGeneration.result;
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: `result-${Date.now()}`,
+                    role: "assistant",
+                    content: `"${r.title}" is ready.`,
+                    type: "result",
+                    links: [{ label: "Open", href: `/api/output-html?id=${r.pageId}` }],
+                },
+            ]);
+        }
+    }, [studyYtGeneration.status, studyYtGeneration.result]);
 
     // Error handling
     useEffect(() => {
@@ -299,15 +330,31 @@ export function ChatInterface({
         }
     }, [knowledgeGraphGeneration.status, knowledgeGraphGeneration.error]);
 
+    useEffect(() => {
+        if (studyYtGeneration.status === "error" && studyYtGeneration.error) {
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: `error-${Date.now()}`,
+                    role: "assistant",
+                    content: `Something went wrong: ${studyYtGeneration.error}`,
+                    type: "error",
+                },
+            ]);
+        }
+    }, [studyYtGeneration.status, studyYtGeneration.error]);
+
     const handleSend = async () => {
         if (!input.trim() || isGenerating) return;
 
         const modeLabel =
             mode === "slides"
-                ? "📊 Slides"
+                ? "Slides"
                 : mode === "webpage"
-                    ? "🌐 Webpage"
-                    : "🧠 Knowledge Graph";
+                    ? "Webpage"
+                    : mode === "study-yt"
+                        ? "Study YT"
+                        : "Knowledge Graph";
 
         const userMsg: Message = {
             id: Date.now().toString(),
@@ -323,6 +370,8 @@ export function ChatInterface({
             slideGeneration.generate(prompt);
         } else if (mode === "webpage") {
             webpageGeneration.generate(prompt);
+        } else if (mode === "study-yt") {
+            studyYtGeneration.generate(prompt);
         } else {
             knowledgeGraphGeneration.generate(prompt, kgDepth);
         }
@@ -332,12 +381,7 @@ export function ChatInterface({
         slides: "Describe your presentation...",
         webpage: "Describe the webpage you want (topic, data, style)...",
         "knowledge-graph": "Enter a topic to map as a knowledge graph...",
-    };
-
-    const footerText: Record<OutputMode, string> = {
-        slides: "Generates PPTX + Web slides",
-        webpage: "Generates a visual HTML page",
-        "knowledge-graph": "Generates an interactive knowledge graph",
+        "study-yt": "Paste a YouTube link (or video ID)…",
     };
 
     return (
@@ -356,59 +400,69 @@ export function ChatInterface({
                                 msg.role === "user" ? "flex-row-reverse" : ""
                             )}
                         >
-                            {msg.role === "assistant" ? (
-                                <div className="size-8 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 shadow-sm shadow-emerald-200 mt-1">
-                                    <ThinkingDots />
-                                </div>
-                            ) : (
-                                <div className="size-8 rounded-full bg-zinc-100 flex items-center justify-center shrink-0 mt-1 border border-zinc-200">
-                                    <span className="text-[10px] font-bold text-zinc-500">YOU</span>
-                                </div>
-                            )}
+	                            {msg.role === "assistant" ? (
+	                                <div className="size-9 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center shrink-0 mt-1">
+	                                    <Bot className="size-5 text-zinc-500" />
+	                                </div>
+	                            ) : (
+	                                <div className="size-8 rounded-full bg-zinc-100 flex items-center justify-center shrink-0 mt-1 border border-zinc-200">
+	                                    <span className="size-2 rounded-full bg-zinc-300" />
+	                                </div>
+	                            )}
 
-                            <div className={cn("space-y-1.5 min-w-0 flex-1", msg.role === "user" ? "text-right" : "")}>
-                                {msg.role === "assistant" && (
-                                    <p className="font-bold text-[10px] uppercase tracking-widest text-zinc-400 ml-1">PresentAI</p>
-                                )}
-                                <div
-                                    className={cn(
-                                        "inline-block rounded-2xl text-[15px] transition-all",
-                                        msg.role === "user"
-                                            ? "bg-zinc-100 text-zinc-900 px-5 py-3 border border-zinc-200/50 shadow-sm"
-                                            : "bg-transparent p-0 text-zinc-800 leading-relaxed",
-                                        msg.type === "error" && "text-red-600"
+	                            <div className={cn("space-y-1.5 min-w-0 flex-1", msg.role === "user" ? "text-right" : "")}>
+	                                <div
+	                                    className={cn(
+	                                        "inline-block rounded-2xl text-[15px] transition-all",
+	                                        msg.role === "user"
+	                                            ? "bg-zinc-100 text-zinc-900 px-5 py-3 border border-zinc-200/50 shadow-sm"
+	                                            : "bg-white text-zinc-800 px-5 py-3 border border-zinc-200/70 shadow-sm leading-relaxed",
+	                                        msg.type === "error" && "text-red-600"
+	                                    )}
+	                                >
+	                                    {msg.content}
+	                                </div>
+                                    {msg.links && msg.links.length > 0 && (
+                                        <div className={cn("mt-2 flex flex-wrap gap-2", msg.role === "user" && "justify-end")}>
+                                            {msg.links.map((link) => (
+                                                <a
+                                                    key={link.href}
+                                                    href={link.href}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="inline-flex items-center px-3 py-1.5 rounded-lg border border-zinc-200 bg-white text-xs font-semibold text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 transition-colors"
+                                                >
+                                                    {link.label}
+                                                </a>
+                                            ))}
+                                        </div>
                                     )}
-                                >
-                                    {msg.content}
-                                </div>
-                            </div>
-                        </motion.div>
-                    ))}
+	                            </div>
+	                        </motion.div>
+	                    ))}
                 </AnimatePresence>
 
                 {/* Live pipeline progress */}
-                {isGenerating && currentGen.progress.length > 0 && (
-                    <div className="flex gap-4 max-w-3xl mx-auto">
-                        <div className="size-8 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 shadow-sm mt-1">
-                            <ThinkingDots />
-                        </div>
-                        <div className="flex-1 space-y-2">
-                             <p className="font-bold text-[10px] uppercase tracking-widest text-zinc-400 ml-1">PresentAI</p>
-                            <ProgressTracker progress={currentGen.progress} />
-                        </div>
-                    </div>
-                )}
+	                {isGenerating && currentGen.progress.length > 0 && (
+	                    <div className="flex gap-4 max-w-3xl mx-auto">
+	                        <div className="size-8 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center shrink-0 mt-1">
+	                            <Bot className="size-4 text-zinc-500" />
+	                        </div>
+	                        <div className="flex-1 space-y-2">
+	                            <ProgressTracker progress={currentGen.progress} />
+	                        </div>
+	                    </div>
+	                )}
 
-                {isGenerating && currentGen.progress.length === 0 && (
-                    <div className="flex gap-4 max-w-3xl mx-auto">
-                        <div className="size-8 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 shadow-sm mt-1">
-                            <ThinkingDots />
-                        </div>
-                        <div className="space-y-2 flex-1">
-                            <p className="font-bold text-[10px] uppercase tracking-widest text-zinc-400 ml-1">PresentAI</p>
-                            <div className="flex items-center gap-2 text-zinc-500 text-sm bg-zinc-50 p-4 rounded-2xl border border-zinc-200/50">
-                                <span className="relative flex size-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+	                {isGenerating && currentGen.progress.length === 0 && (
+	                    <div className="flex gap-4 max-w-3xl mx-auto">
+	                        <div className="size-8 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center shrink-0 mt-1">
+	                            <Bot className="size-4 text-zinc-500" />
+	                        </div>
+	                        <div className="space-y-2 flex-1">
+	                            <div className="flex items-center gap-2 text-zinc-500 text-sm bg-zinc-50 p-4 rounded-2xl border border-zinc-200/50">
+	                                <span className="relative flex size-2">
+	                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                     <span className="relative inline-flex rounded-full size-2 bg-emerald-500"></span>
                                 </span>
                                 Connecting to pipeline...
@@ -420,39 +474,8 @@ export function ChatInterface({
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Suggestion chips */}
-            {messages.length === 1 && !isGenerating && (
-                <div className="absolute bottom-52 left-0 right-0 flex justify-center">
-                    <div className="flex flex-wrap gap-2 max-w-3xl px-4">
-                        {(mode === "knowledge-graph"
-                            ? [
-                                "Machine Learning algorithms and their relationships",
-                                "History of the Internet — key events and technologies",
-                                "Climate change causes, effects, and solutions",
-                            ]
-                            : [
-                                "A pitch deck for an AI coffee machine startup",
-                                "Renewable energy adoption in Bangladesh",
-                                "Q3 Marketing Strategy for a SaaS company",
-                            ]
-                        ).map((suggestion, i) => (
-                            <motion.button
-                                key={suggestion}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: i * 0.1 }}
-                                onClick={() => setInput(suggestion)}
-                                className="px-4 py-2 bg-white border border-zinc-200 rounded-full text-xs font-medium text-zinc-600 hover:border-emerald-300 hover:bg-emerald-50 transition-all shadow-sm active:scale-95"
-                            >
-                                {suggestion}
-                            </motion.button>
-                        ))}
-                    </div>
-                </div>
-            )}
-
             {/* Input Area */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white via-white to-transparent">
+	            <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white via-white to-transparent">
                 <div className="max-w-3xl mx-auto bg-white rounded-3xl border border-zinc-200 shadow-xl shadow-zinc-900/5 p-3 flex flex-col gap-2 relative ring-1 ring-zinc-900/5 focus-within:ring-2 focus-within:ring-emerald-500/10 transition-all">
                     <textarea
                         value={input}
@@ -468,13 +491,13 @@ export function ChatInterface({
                         rows={1}
                     />
 
-                    <div className="flex items-center justify-between pl-1">
-                        {/* Mode toggle */}
-                        <div className="flex items-center gap-1 bg-zinc-100/50 rounded-xl p-1 border border-zinc-200/50">
-                            {(["slides", "webpage", "knowledge-graph"] as const).map((m) => (
-                                <button
-                                    key={m}
-                                    onClick={() => setMode(m)}
+	                    <div className="flex flex-wrap items-center justify-between gap-2 pl-1">
+	                        {/* Mode toggle */}
+		                        <div className="flex flex-wrap items-center gap-1 bg-zinc-100/50 rounded-xl p-1 border border-zinc-200/50">
+		                            {(["slides", "webpage", "study-yt", "knowledge-graph"] as const).map((m) => (
+		                                <button
+		                                    key={m}
+		                                    onClick={() => setMode(m)}
                                     disabled={isGenerating}
                                     className={cn(
                                         "flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all uppercase tracking-wider",
@@ -483,19 +506,27 @@ export function ChatInterface({
                                             : "text-zinc-400 hover:text-zinc-600"
                                     )}
                                 >
-                                    {m === "slides" ? <Presentation className="size-3.5" /> : m === "webpage" ? <Globe className="size-3.5" /> : <Network className="size-3.5" />}
-                                    {m.replace("-", " ").split(" ")[0]}
+                                    {m === "slides" ? (
+                                        <Presentation className="size-3.5" />
+                                    ) : m === "webpage" ? (
+                                        <Globe className="size-3.5" />
+                                    ) : m === "study-yt" ? (
+                                        <Youtube className="size-3.5" />
+                                    ) : (
+                                        <Network className="size-3.5" />
+                                    )}
+                                    {m === "knowledge-graph" ? "Graph" : m === "study-yt" ? "Study YT" : m === "webpage" ? "Web" : "Slides"}
                                 </button>
-                            ))}
-                        </div>
+		                            ))}
+		                        </div>
 
-                        <div className="flex items-center gap-2">
-                            {mode === "knowledge-graph" && (
-                                <div className="flex items-center gap-1 text-[10px] font-bold text-zinc-400 uppercase tracking-widest mr-2">
-                                    <span className="mr-1">Depth</span>
-                                    {[1, 2, 3].map((d) => (
-                                        <button
-                                            key={d}
+	                        <div className="flex flex-wrap items-center justify-end gap-2">
+	                            {mode === "knowledge-graph" && (
+	                                <div className="flex flex-wrap items-center gap-1 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+	                                    <span className="mr-1">Depth</span>
+	                                    {[1, 2, 3].map((d) => (
+	                                        <button
+	                                            key={d}
                                             onClick={() => setKgDepth(d)}
                                             disabled={isGenerating}
                                             className={cn(
@@ -527,11 +558,8 @@ export function ChatInterface({
                             </motion.button>
                         </div>
                     </div>
-                </div>
-                <p className="text-center text-[10px] font-bold text-zinc-300 uppercase tracking-[0.2em] mt-4 pb-2">
-                    Powered by Gemini · {footerText[mode]}
-                </p>
-            </div>
-        </div>
-    );
-}
+	                </div>
+	            </div>
+	        </div>
+	    );
+	}

@@ -33,5 +33,13 @@ Rules:
   - full_visual → when the visual IS the content
   - big_number → for statistic-focused slides
 - If visualIntent is bar_chart/line_chart/pie_chart/timeline, layoutHint should be "chart_with_text" unless there's a clear reason for "full_visual"
+- Avoid monotony:
+  - Don't use "bullets" for more than ~50% of slides
+  - Avoid repeating the same layoutHint more than 2 slides in a row
+  - Include at least 2-3 non-bullets slides (chart_with_text, two_column, full_visual, big_number) when slideCount >= 8
+- Ensure visualIntent + layoutHint are consistent:
+  - full_visual should usually pair with photo_grid/infographic/map or a chart visual
+  - big_number should pair with visualIntent "big_number"
+  - two_column should pair with "comparison_table" when a table makes sense
 - Slide count: use the user's preference if given, otherwise 8-12 for most topics
 - Make the plan feel like a coherent narrative arc, not a random list`;

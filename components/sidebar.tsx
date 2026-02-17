@@ -1,22 +1,24 @@
 import {
-    Plus,
-    Layout,
     Settings,
     Inbox,
-    ChevronsLeft,
-    ChevronsRight,
+    PanelLeftClose,
+    PanelLeftOpen,
     Presentation,
     Globe,
     Network,
+    Youtube,
     Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { HistoryListItem } from "@/lib/hooks/use-history";
+import { OutputMode } from "@/lib/types";
 
 interface SidebarProps {
     isCollapsed: boolean;
     onToggle: () => void;
+    mode: OutputMode;
+    onSetMode: (mode: OutputMode) => void;
     historyItems: HistoryListItem[];
     historyStatus?: "idle" | "loading" | "error";
     onNew: () => void;
@@ -28,6 +30,7 @@ interface SidebarProps {
 function modeIcon(mode: HistoryListItem["mode"]) {
     if (mode === "slides") return Presentation;
     if (mode === "webpage") return Globe;
+    if (mode === "study-yt") return Youtube;
     return Network;
 }
 
@@ -42,6 +45,8 @@ function formatDate(ts: number) {
 export function Sidebar({
     isCollapsed,
     onToggle,
+    mode,
+    onSetMode,
     historyItems,
     historyStatus = "idle",
     onNew,
@@ -49,42 +54,99 @@ export function Sidebar({
     onDeleteHistory,
     activeHistoryId,
 }: SidebarProps) {
+    const collapsedWidth = 72;
+    const expandedWidth = 280;
+
     return (
         <motion.aside 
             initial={false}
-            animate={{ width: isCollapsed ? 64 : 256 }}
+            animate={{ width: isCollapsed ? collapsedWidth : expandedWidth }}
             className="bg-white border-r border-zinc-200 flex flex-col h-full shrink-0 relative"
         >
-            {/* Brand (Top toggle) */}
-            <button
-                onClick={onToggle}
+            {/* Top Controls */}
+            <div
                 className={cn(
-                    "p-4 flex items-center gap-2 border-b border-zinc-100/50 h-14 w-full text-left hover:bg-zinc-50 transition-colors",
-                    isCollapsed && "justify-center px-2"
+                    "h-14 border-b border-zinc-100/50 px-2 flex items-center",
+                    isCollapsed ? "justify-center" : "justify-end"
                 )}
-                title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
-                <div className="size-8 bg-emerald-500 rounded-lg flex items-center justify-center shadow-sm shadow-emerald-200 shrink-0">
-                    <Layout className="text-white size-4" />
-                </div>
-                {!isCollapsed && (
-                    <span className="font-semibold text-sm tracking-tight text-zinc-900 truncate">
-                        PresentAI
-                    </span>
-                )}
-            </button>
+                <button
+                    onClick={onToggle}
+                    className={cn(
+                        "size-9 rounded-xl flex items-center justify-center border border-zinc-300/70 bg-zinc-200/70 text-zinc-600 hover:bg-zinc-200 transition-colors"
+                    )}
+                    title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                >
+                    {isCollapsed ? (
+                        <PanelLeftOpen className="size-4" />
+                    ) : (
+                        <PanelLeftClose className="size-4" />
+                    )}
+                </button>
+            </div>
 
             {/* New Presentation */}
-            <div className="p-4">
+            <div className={cn("p-4", isCollapsed && "p-2 flex justify-center")}>
                 <button
                     onClick={onNew}
                     className={cn(
-                    "flex items-center gap-2 bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-700 rounded-xl text-sm font-medium transition-all duration-200 shadow-sm active:scale-[0.98] w-full",
-                    isCollapsed ? "justify-center size-10 p-0" : "px-3 py-2"
-                )}>
-                    <Plus className="size-4 shrink-0" />
-                    {!isCollapsed && <span>New Presentation</span>}
+                        "h-10 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 font-black text-2xl leading-none flex items-center justify-center transition-colors active:scale-95",
+                        isCollapsed ? "size-10 mx-auto" : "w-full"
+                    )}
+                    title="New presentation"
+                >
+                    +
                 </button>
+            </div>
+
+            {/* Modes */}
+            <div className={cn("px-2", isCollapsed && "px-1")}>
+                {!isCollapsed && (
+                    <div className="text-[10px] font-bold text-zinc-400 px-3 py-1 mb-1 uppercase tracking-widest">
+                        Modes
+                    </div>
+                )}
+                <div className={cn("space-y-1", isCollapsed && "flex flex-col items-center")}>
+                    {(
+                        [
+                            { key: "slides" as const, label: "Slides", Icon: Presentation },
+                            { key: "webpage" as const, label: "Webpage", Icon: Globe },
+                            { key: "study-yt" as const, label: "Study YT", Icon: Youtube },
+                            { key: "knowledge-graph" as const, label: "Graph", Icon: Network },
+                        ] satisfies Array<{ key: OutputMode; label: string; Icon: typeof Presentation }>
+                    ).map(({ key, label, Icon }) => {
+                        const active = mode === key;
+                        return (
+                            <button
+                                key={key}
+                                type="button"
+                                onClick={() => onSetMode(key)}
+                                className={cn(
+                                    "w-full flex items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors border",
+                                    isCollapsed ? "justify-center px-0" : "",
+                                    active
+                                        ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                                        : "bg-white border-transparent text-zinc-600 hover:bg-zinc-50 hover:border-zinc-200"
+                                )}
+                                title={label}
+                            >
+                                <div
+                                    className={cn(
+                                        "size-9 rounded-lg flex items-center justify-center shrink-0 border",
+                                        active
+                                            ? "bg-white border-emerald-200 text-emerald-700"
+                                            : "bg-white border-zinc-200 text-zinc-500"
+                                    )}
+                                >
+                                    <Icon className="size-4" />
+                                </div>
+                                {!isCollapsed && (
+                                    <span className="text-sm font-semibold">{label}</span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
             </div>
 
             {/* History */}
@@ -185,35 +247,18 @@ export function Sidebar({
 	                        </div>
 	                    )
 	                ) : null}
-	            </div>
+            </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-zinc-100 space-y-2">
+            <div className={cn("p-4 border-t border-zinc-100 space-y-2", isCollapsed && "p-2")}>
                 <button
                     className={cn(
                         "flex items-center gap-2 text-sm text-zinc-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors w-full",
-                        isCollapsed ? "justify-center size-10 p-0" : "px-2 py-2"
+                        isCollapsed ? "justify-center size-10 p-0 mx-auto" : "px-2 py-2"
                     )}
                 >
                     <Settings className="size-4 shrink-0" />
                     {!isCollapsed && <span>Settings</span>}
-                </button>
-
-                {/* Bottom toggle (<< / >>) */}
-                <button
-                    onClick={onToggle}
-                    className={cn(
-                        "flex items-center gap-2 text-sm text-zinc-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors w-full border border-zinc-200 bg-white",
-                        isCollapsed ? "justify-center size-10 p-0" : "px-2 py-2"
-                    )}
-                    title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                >
-                    {isCollapsed ? (
-                        <ChevronsRight className="size-4 shrink-0" />
-                    ) : (
-                        <ChevronsLeft className="size-4 shrink-0" />
-                    )}
-                    {!isCollapsed && <span>{isCollapsed ? "Expand" : "Collapse"}</span>}
                 </button>
             </div>
         </motion.aside>

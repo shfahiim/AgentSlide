@@ -6,6 +6,50 @@ function unhash(color: string): string {
   return color.replace("#", "");
 }
 
+function toTransparency(alpha: number): number {
+  const clamped = Math.max(0, Math.min(1, alpha));
+  return Math.round((1 - clamped) * 100);
+}
+
+function addTitle(slide: PptxGenJS.Slide, spec: SlideSpec, theme: ThemeSpec) {
+  slide.addText(spec.title, {
+    x: 0.67,
+    y: 0.38,
+    w: 12.0,
+    h: 0.9,
+    fontSize: 28,
+    bold: true,
+    color: unhash(theme.colors.heading),
+    fontFace: theme.fonts.heading,
+  });
+
+  if (spec.subtitle) {
+    slide.addText(spec.subtitle, {
+      x: 0.67,
+      y: 1.15,
+      w: 12.0,
+      h: 0.5,
+      fontSize: 16,
+      color: unhash(theme.colors.text),
+      fontFace: theme.fonts.body,
+    });
+  }
+}
+
+function addCard(
+  slide: PptxGenJS.Slide,
+  opts: { x: number; y: number; w: number; h: number; theme: ThemeSpec },
+) {
+  slide.addShape("roundRect", {
+    x: opts.x,
+    y: opts.y,
+    w: opts.w,
+    h: opts.h,
+    fill: { color: unhash(opts.theme.colors.surface) },
+    line: { color: unhash(opts.theme.colors.text), transparency: toTransparency(0.12), width: 1 },
+  });
+}
+
 // ─── Layout-specific renderers ──────────────────────────────────────────
 
 function renderTitleSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: ThemeSpec) {
@@ -27,24 +71,83 @@ function renderTitleSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: ThemeS
 }
 
 function renderBulletSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: ThemeSpec) {
-  // Title
-  slide.addText(spec.title, {
-    x: 0.67, y: 0.38, w: 12.0, h: 0.9,
-    fontSize: 28, bold: true,
-    color: unhash(theme.colors.heading),
-    fontFace: theme.fonts.heading,
-  });
+  addTitle(slide, spec, theme);
 
-  if (spec.subtitle) {
-    slide.addText(spec.subtitle, {
-      x: 0.67, y: 1.15, w: 12.0, h: 0.5,
-      fontSize: 16,
+  // Quote-style slide: 1 bullet + subtitle as attribution
+  if (spec.subtitle && spec.bullets.length === 1) {
+    addCard(slide, { x: 1.0, y: 2.0, w: 11.33, h: 3.7, theme });
+    slide.addText(`“${spec.bullets[0]}”`, {
+      x: 1.35,
+      y: 2.35,
+      w: 10.63,
+      h: 2.4,
+      fontSize: 28,
+      bold: true,
+      color: unhash(theme.colors.heading),
+      fontFace: theme.fonts.body,
+      valign: "top",
+    });
+    slide.addText(`— ${spec.subtitle}`, {
+      x: 1.35,
+      y: 4.85,
+      w: 10.63,
+      h: 0.6,
+      fontSize: 14,
       color: unhash(theme.colors.text),
       fontFace: theme.fonts.body,
+      align: "right",
     });
+    return;
   }
 
-  // Bullets
+  // Card grid (2x2) for 2-4 bullets
+  if (spec.bullets.length > 0 && spec.bullets.length <= 4) {
+    const cards = [
+      { x: 0.8, y: 1.9, w: 6.1, h: 2.35 },
+      { x: 6.55, y: 1.9, w: 6.1, h: 2.35 },
+      { x: 0.8, y: 4.45, w: 6.1, h: 2.35 },
+      { x: 6.55, y: 4.45, w: 6.1, h: 2.35 },
+    ];
+
+    for (const [idx, bullet] of spec.bullets.entries()) {
+      const c = cards[idx];
+      if (!c) break;
+      addCard(slide, { ...c, theme });
+      slide.addShape("roundRect", {
+        x: c.x + 0.25,
+        y: c.y + 0.25,
+        w: 0.5,
+        h: 0.5,
+        fill: { color: unhash(theme.colors.accent), transparency: toTransparency(0.14) },
+        line: { color: unhash(theme.colors.accent), transparency: toTransparency(0.25), width: 1 },
+      });
+      slide.addText(String(idx + 1), {
+        x: c.x + 0.25,
+        y: c.y + 0.25,
+        w: 0.5,
+        h: 0.5,
+        fontSize: 14,
+        bold: true,
+        color: unhash(theme.colors.accent),
+        fontFace: theme.fonts.heading,
+        align: "center",
+        valign: "middle",
+      });
+      slide.addText(bullet, {
+        x: c.x + 0.9,
+        y: c.y + 0.25,
+        w: c.w - 1.15,
+        h: c.h - 0.5,
+        fontSize: 16,
+        color: unhash(theme.colors.text),
+        fontFace: theme.fonts.body,
+        valign: "top",
+      });
+    }
+    return;
+  }
+
+  // Bullets list fallback
   if (spec.bullets.length > 0) {
     const bulletItems = spec.bullets.map((b) => ({
       text: b,
@@ -57,7 +160,10 @@ function renderBulletSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: Theme
     }));
 
     slide.addText(bulletItems, {
-      x: 1.07, y: 1.65, w: 11.2, h: 5.25,
+      x: 1.07,
+      y: 1.65,
+      w: 11.2,
+      h: 5.25,
       valign: "top",
       lineSpacingMultiple: 1.5,
     });
@@ -65,13 +171,7 @@ function renderBulletSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: Theme
 }
 
 async function renderChartSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: ThemeSpec) {
-  // Title
-  slide.addText(spec.title, {
-    x: 0.67, y: 0.38, w: 12.0, h: 0.9,
-    fontSize: 28, bold: true,
-    color: unhash(theme.colors.heading),
-    fontFace: theme.fonts.heading,
-  });
+  addTitle(slide, spec, theme);
 
   // Left: bullets (50%)
   if (spec.bullets.length > 0) {
@@ -100,6 +200,7 @@ async function renderChartSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: 
       const chartW = 6.4;
       const chartH = 4.0;
       const chartBuffer = await renderChartToPng(getVegaLiteSpec(chart), 1600, 1000, theme);
+      addCard(slide, { x: 6.1, y: 1.55, w: 6.7, h: 4.25, theme });
       slide.addImage({
         data: `data:image/png;base64,${chartBuffer.toString("base64")}`,
         x: 6.25, y: 1.65, w: chartW, h: chartH,
@@ -116,13 +217,44 @@ async function renderChartSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: 
 }
 
 function renderTwoColumnSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: ThemeSpec) {
-  // Title
-  slide.addText(spec.title, {
-    x: 0.67, y: 0.38, w: 12.0, h: 0.9,
-    fontSize: 28, bold: true,
-    color: unhash(theme.colors.heading),
-    fontFace: theme.fonts.heading,
-  });
+  addTitle(slide, spec, theme);
+
+  const table = spec.visuals.find((a) => a.type === "table");
+  if (table && table.type === "table" && table.headers.length > 0) {
+    const headerRow = table.headers.map((h) => ({
+      text: h,
+      options: {
+        bold: true,
+        color: "FFFFFF",
+        fill: { color: unhash(theme.colors.accent) },
+        fontFace: theme.fonts.body,
+        fontSize: 12,
+      },
+    }));
+
+    const bodyRows = table.rows.map((row) =>
+      row.map((cell) => ({
+        text: cell,
+        options: {
+          color: unhash(theme.colors.text),
+          fill: { color: unhash(theme.colors.surface) },
+          fontFace: theme.fonts.body,
+          fontSize: 12,
+        },
+      })),
+    );
+
+    slide.addTable([headerRow, ...bodyRows], {
+      x: 0.67,
+      y: 1.65,
+      w: 12.0,
+      h: 5.4,
+      border: { pt: 1, color: "E2E8F0" },
+      fontFace: theme.fonts.body,
+      margin: 6,
+    });
+    return;
+  }
 
   // Split bullets evenly into two columns
   const mid = Math.ceil(spec.bullets.length / 2);
@@ -159,6 +291,15 @@ function renderTwoColumnSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: Th
 
 async function renderFullVisualSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: ThemeSpec) {
   // Full-bleed visual with title overlay
+  const image = spec.visuals.find((a) => a.type === "image");
+  if (image && image.type === "image" && image.url) {
+    try {
+      slide.addImage({ path: image.url, x: 0, y: 0, w: 13.33, h: 7.5 });
+    } catch {
+      // ignore
+    }
+  }
+
   const chart = spec.visuals.find((a) => a.type === "chart");
   if (chart && chart.type === "chart") {
     try {
@@ -172,11 +313,19 @@ async function renderFullVisualSlide(slide: PptxGenJS.Slide, spec: SlideSpec, th
     }
   }
 
-  // Title as overlay at bottom
+  // Title overlay at bottom (improves readability over images)
+  slide.addShape("rect", {
+    x: 0,
+    y: 5.65,
+    w: 13.33,
+    h: 1.85,
+    fill: { color: "000000", transparency: 45 },
+    line: { color: "000000", transparency: 100 },
+  });
   slide.addText(spec.title, {
     x: 0.5, y: 5.5, w: 12.33, h: 1.2,
     fontSize: 28, bold: true, align: "center",
-    color: unhash(theme.colors.heading),
+    color: "FFFFFF",
     fontFace: theme.fonts.heading,
   });
 }
@@ -193,9 +342,11 @@ function renderBigNumberSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: Th
   // Find big_number asset
   const bigNum = spec.visuals.find((a) => a.type === "big_number");
   if (bigNum && bigNum.type === "big_number") {
+    addCard(slide, { x: 1.0, y: 1.6, w: 11.33, h: 5.6, theme });
+
     // Giant number centered
     slide.addText(bigNum.value, {
-      x: 1.0, y: 2.0, w: 11.33, h: 2.5,
+      x: 1.0, y: 2.1, w: 11.33, h: 2.5,
       fontSize: 72, bold: true, align: "center",
       color: unhash(theme.colors.accent),
       fontFace: theme.fonts.heading,
