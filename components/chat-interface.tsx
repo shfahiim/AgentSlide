@@ -77,12 +77,22 @@ function ThinkingDots() {
     );
 }
 
-function ProgressTracker({ progress }: { progress: PipelineProgress[] }) {
+function ProgressTracker({ progress, elapsedTime }: { progress: PipelineProgress[]; elapsedTime: number }) {
     const [collapsed, setCollapsed] = useState(false);
 
     const stepMap = new Map<string, PipelineProgress>();
     progress.forEach((p) => stepMap.set(p.step, p));
     const steps = Array.from(stepMap.values());
+
+    const formatTime = (ms: number) => {
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        if (minutes > 0) {
+            return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+        }
+        return `${seconds}s`;
+    };
 
     return (
         <motion.div 
@@ -100,8 +110,13 @@ function ProgressTracker({ progress }: { progress: PipelineProgress[] }) {
                     <ChevronDown className="size-4 text-zinc-400" />
                 )}
                 Agent Workflow
-                <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded-full">
-                    {steps.filter((s) => s.status === "done").length}/{steps.length} steps
+                <span className="ml-auto flex items-center gap-2">
+                    <span className="text-xs font-semibold text-emerald-600">
+                        {formatTime(elapsedTime)}
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded-full">
+                        {steps.filter((s) => s.status === "done").length}/{steps.length} steps
+                    </span>
                 </span>
             </button>
 
@@ -164,6 +179,8 @@ export function ChatInterface({
     const [selectedTheme, setSelectedTheme] = useState("emerald-modern");
     const [showThemeMenu, setShowThemeMenu] = useState(false);
     const [messages, setMessages] = useState<Message[]>([]);
+    const [startTime, setStartTime] = useState<number | null>(null);
+    const [elapsedTime, setElapsedTime] = useState(0);
 
     const THEMES = [
         { value: "emerald-modern", label: "Emerald Modern", color: "#10b981" },
@@ -236,6 +253,27 @@ export function ChatInterface({
     useEffect(() => {
         scrollToBottom();
     }, [messages, currentGen.progress.length]);
+
+    // Timer effect - updates every 100ms while generating
+    useEffect(() => {
+        if (isGenerating && startTime) {
+            const interval = setInterval(() => {
+                setElapsedTime(Date.now() - startTime);
+            }, 100);
+            return () => clearInterval(interval);
+        }
+    }, [isGenerating, startTime]);
+
+    // Reset timer when generation starts
+    useEffect(() => {
+        if (isGenerating && !startTime) {
+            setStartTime(Date.now());
+            setElapsedTime(0);
+        } else if (!isGenerating && startTime) {
+            // Keep final time when done
+            setStartTime(null);
+        }
+    }, [isGenerating, startTime]);
 
     // Slide result
     useEffect(() => {
@@ -477,7 +515,7 @@ export function ChatInterface({
 		                {isGenerating && currentGen.progress.length > 0 && (
 		                    <div className="max-w-3xl mx-auto">
 		                        <div className="space-y-2">
-		                            <ProgressTracker progress={currentGen.progress} />
+		                            <ProgressTracker progress={currentGen.progress} elapsedTime={elapsedTime} />
 		                        </div>
 		                    </div>
 		                )}
