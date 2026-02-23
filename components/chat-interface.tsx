@@ -557,7 +557,7 @@ export function ChatInterface({
 	                    <div className="flex flex-wrap items-center justify-between gap-2 pl-1">
 	                        {/* Mode toggle */}
 		                        <div className="flex flex-wrap items-center gap-1 bg-zinc-100/50 rounded-xl p-1 border border-zinc-200/50">
-		                            {(["slides", "webpage", "study-yt", "knowledge-graph"] as const).map((m) => (
+		                            {(["slides", "webpage", "knowledge-graph"] as const).map((m) => (
 		                                <button
 		                                    key={m}
 		                                    onClick={() => setMode(m)}
@@ -573,12 +573,10 @@ export function ChatInterface({
                                         <Presentation className="size-3.5" />
                                     ) : m === "webpage" ? (
                                         <Globe className="size-3.5" />
-                                    ) : m === "study-yt" ? (
-                                        <Youtube className="size-3.5" />
                                     ) : (
                                         <Network className="size-3.5" />
                                     )}
-                                    {m === "knowledge-graph" ? "Graph" : m === "study-yt" ? "Study YT" : m === "webpage" ? "Web" : "Slides"}
+                                    {m === "knowledge-graph" ? "Graph" : m === "webpage" ? "Web" : "Slides"}
                                 </button>
 		                            ))}
 		                        </div>

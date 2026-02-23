@@ -122,7 +122,6 @@ export function Sidebar({
                         [
                             { key: "slides" as const, label: "Slides", Icon: Presentation },
                             { key: "webpage" as const, label: "Webpage", Icon: Globe },
-                            { key: "study-yt" as const, label: "Study YT", Icon: Youtube },
                             { key: "knowledge-graph" as const, label: "Graph", Icon: Network },
                         ] satisfies Array<{ key: OutputMode; label: string; Icon: typeof Presentation }>
                     ).map(({ key, label, Icon }) => {
