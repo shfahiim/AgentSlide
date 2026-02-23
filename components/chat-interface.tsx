@@ -12,7 +12,6 @@ import {
     Globe,
     Network,
     Youtube,
-    Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
@@ -159,17 +158,49 @@ export function ChatInterface({
     webpageGeneration,
     knowledgeGraphGeneration,
     studyYtGeneration,
-		}: ChatInterfaceProps) {
-	    const [input, setInput] = useState("");
-	    const [kgDepth, setKgDepth] = useState(2);
-	    const [messages, setMessages] = useState<Message[]>([]);
+}: ChatInterfaceProps) {
+    const [input, setInput] = useState("");
+    const [kgDepth, setKgDepth] = useState(2);
+    const [selectedTheme, setSelectedTheme] = useState("emerald-modern");
+    const [showThemeMenu, setShowThemeMenu] = useState(false);
+    const [messages, setMessages] = useState<Message[]>([]);
+
+    const THEMES = [
+        { value: "emerald-modern", label: "Emerald Modern", color: "#10b981" },
+        { value: "ocean-blue", label: "Ocean Blue", color: "#0284c7" },
+        { value: "sunset-warm", label: "Sunset Warm", color: "#f97316" },
+        { value: "royal-purple", label: "Royal Purple", color: "#7c3aed" },
+        { value: "rose-cream", label: "Rose Cream", color: "#e11d48" },
+        { value: "slate-mono", label: "Slate Mono", color: "#334155" },
+        { value: "modern-dark", label: "Modern Dark", color: "#6366f1" },
+        { value: "minimal-light", label: "Minimal Light", color: "#2563eb" },
+        { value: "corporate", label: "Corporate", color: "#0369a1" },
+        { value: "vibrant", label: "Vibrant", color: "#e94560" },
+    ];
 	    const messagesEndRef = useRef<HTMLDivElement>(null);
+	    const themeMenuRef = useRef<HTMLDivElement>(null);
 	    const hasAddedResult = useRef(false);
+
+    // Close theme menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (themeMenuRef.current && !themeMenuRef.current.contains(event.target as Node)) {
+                setShowThemeMenu(false);
+            }
+        };
+        
+        if (showThemeMenu) {
+            document.addEventListener("mousedown", handleClickOutside);
+            return () => document.removeEventListener("mousedown", handleClickOutside);
+        }
+    }, [showThemeMenu]);
 
     // Reset chat when the user starts a new session or loads history
     useEffect(() => {
         setInput("");
         setKgDepth(2);
+        setSelectedTheme("emerald-modern");
+        setShowThemeMenu(false);
         setMessages(
             initialUserPrompt
                 ? [
@@ -367,7 +398,7 @@ export function ChatInterface({
         hasAddedResult.current = false;
 
         if (mode === "slides") {
-            slideGeneration.generate(prompt);
+            slideGeneration.generate(prompt, selectedTheme);
         } else if (mode === "webpage") {
             webpageGeneration.generate(prompt);
         } else if (mode === "study-yt") {
@@ -385,9 +416,9 @@ export function ChatInterface({
     };
 
     return (
-        <div className="flex flex-col h-full relative">
+        <div className="flex flex-col h-full relative overflow-hidden">
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 pb-44">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 space-y-8 pb-44">
                 <AnimatePresence initial={false}>
                     {messages.map((msg) => (
                         <motion.div
@@ -396,35 +427,35 @@ export function ChatInterface({
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             transition={{ duration: 0.4, ease: [0.19, 1, 0.22, 1] }}
                             className={cn(
-                                "flex gap-4 max-w-3xl mx-auto",
-                                msg.role === "user" ? "flex-row-reverse" : ""
+                                "flex max-w-3xl mx-auto",
+                                msg.role === "user" ? "justify-end" : "justify-start"
                             )}
                         >
-	                            {msg.role === "assistant" ? (
-	                                <div className="size-9 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center shrink-0 mt-1">
-	                                    <Bot className="size-5 text-zinc-500" />
-	                                </div>
-	                            ) : (
-	                                <div className="size-8 rounded-full bg-zinc-100 flex items-center justify-center shrink-0 mt-1 border border-zinc-200">
-	                                    <span className="size-2 rounded-full bg-zinc-300" />
-	                                </div>
-	                            )}
-
-	                            <div className={cn("space-y-1.5 min-w-0 flex-1", msg.role === "user" ? "text-right" : "")}>
-	                                <div
-	                                    className={cn(
-	                                        "inline-block rounded-2xl text-[15px] transition-all",
-	                                        msg.role === "user"
-	                                            ? "bg-zinc-100 text-zinc-900 px-5 py-3 border border-zinc-200/50 shadow-sm"
-	                                            : "bg-white text-zinc-800 px-5 py-3 border border-zinc-200/70 shadow-sm leading-relaxed",
-	                                        msg.type === "error" && "text-red-600"
-	                                    )}
-	                                >
-	                                    {msg.content}
-	                                </div>
-                                    {msg.links && msg.links.length > 0 && (
-                                        <div className={cn("mt-2 flex flex-wrap gap-2", msg.role === "user" && "justify-end")}>
-                                            {msg.links.map((link) => (
+	                            <div className={cn("space-y-1.5 min-w-0 w-full max-w-[85%]", msg.role === "user" ? "text-right" : "")}>
+		                                <div className="relative">
+		                                    <span
+		                                        className={cn(
+		                                            "absolute -top-1 size-2.5 rotate-45 border",
+		                                            msg.role === "user"
+		                                                ? "right-4 bg-zinc-100 border-zinc-200/50"
+		                                                : "left-4 bg-white border-zinc-200/70",
+		                                        )}
+		                                    />
+		                                <div
+		                                    className={cn(
+                                        "relative z-10 inline-block max-w-full rounded-2xl text-[15px] transition-all whitespace-pre-wrap break-words [overflow-wrap:anywhere]",
+                                        msg.role === "user"
+                                            ? "bg-zinc-100 text-zinc-900 px-5 py-3 border border-zinc-200/50 shadow-sm"
+                                            : "bg-white text-zinc-800 px-5 py-3 border border-zinc-200/70 shadow-sm leading-relaxed",
+                                        msg.type === "error" && "text-red-600"
+                                    )}
+                                >
+                                    {msg.content}
+                                </div>
+		                                </div>
+	                                    {msg.links && msg.links.length > 0 && (
+	                                        <div className={cn("mt-2 flex flex-wrap gap-2", msg.role === "user" && "justify-end")}>
+	                                            {msg.links.map((link) => (
                                                 <a
                                                     key={link.href}
                                                     href={link.href}
@@ -443,26 +474,20 @@ export function ChatInterface({
                 </AnimatePresence>
 
                 {/* Live pipeline progress */}
-	                {isGenerating && currentGen.progress.length > 0 && (
-	                    <div className="flex gap-4 max-w-3xl mx-auto">
-	                        <div className="size-8 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center shrink-0 mt-1">
-	                            <Bot className="size-4 text-zinc-500" />
-	                        </div>
-	                        <div className="flex-1 space-y-2">
-	                            <ProgressTracker progress={currentGen.progress} />
-	                        </div>
-	                    </div>
-	                )}
+		                {isGenerating && currentGen.progress.length > 0 && (
+		                    <div className="max-w-3xl mx-auto">
+		                        <div className="space-y-2">
+		                            <ProgressTracker progress={currentGen.progress} />
+		                        </div>
+		                    </div>
+		                )}
 
-	                {isGenerating && currentGen.progress.length === 0 && (
-	                    <div className="flex gap-4 max-w-3xl mx-auto">
-	                        <div className="size-8 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center shrink-0 mt-1">
-	                            <Bot className="size-4 text-zinc-500" />
-	                        </div>
-	                        <div className="space-y-2 flex-1">
-	                            <div className="flex items-center gap-2 text-zinc-500 text-sm bg-zinc-50 p-4 rounded-2xl border border-zinc-200/50">
-	                                <span className="relative flex size-2">
-	                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+		                {isGenerating && currentGen.progress.length === 0 && (
+		                    <div className="max-w-3xl mx-auto">
+		                        <div className="space-y-2">
+		                            <div className="flex items-center gap-2 text-zinc-500 text-sm bg-zinc-50 p-4 rounded-2xl border border-zinc-200/50">
+		                                <span className="relative flex size-2">
+		                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                     <span className="relative inline-flex rounded-full size-2 bg-emerald-500"></span>
                                 </span>
                                 Connecting to pipeline...
@@ -521,6 +546,50 @@ export function ChatInterface({
 		                        </div>
 
 	                        <div className="flex flex-wrap items-center justify-end gap-2">
+	                            {mode === "slides" && (
+	                                <div className="relative" ref={themeMenuRef}>
+	                                    <button
+	                                        onClick={() => setShowThemeMenu(!showThemeMenu)}
+	                                        disabled={isGenerating}
+	                                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-200 bg-white text-xs font-semibold text-zinc-700 hover:border-emerald-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+	                                    >
+	                                        <div
+	                                            className="size-3.5 rounded border border-zinc-300 shrink-0"
+	                                            style={{ backgroundColor: THEMES.find(t => t.value === selectedTheme)?.color }}
+	                                        />
+	                                        <span className="whitespace-nowrap">{THEMES.find(t => t.value === selectedTheme)?.label}</span>
+	                                    </button>
+	                                    
+	                                    {showThemeMenu && (
+	                                        <div className="absolute bottom-full right-0 mb-2 bg-white rounded-xl border border-zinc-200 shadow-2xl p-2 w-56 max-h-80 overflow-y-auto z-50">
+	                                            <div className="space-y-1">
+	                                                {THEMES.map((theme) => (
+	                                                    <button
+	                                                        key={theme.value}
+	                                                        onClick={() => {
+	                                                            setSelectedTheme(theme.value);
+	                                                            setShowThemeMenu(false);
+	                                                        }}
+	                                                        className={cn(
+	                                                            "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors text-left",
+	                                                            selectedTheme === theme.value
+	                                                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+	                                                                : "hover:bg-zinc-50 text-zinc-700 border border-transparent"
+	                                                        )}
+	                                                    >
+	                                                        <div
+	                                                            className="size-4 rounded border border-zinc-300 shrink-0"
+	                                                            style={{ backgroundColor: theme.color }}
+	                                                        />
+	                                                        <span>{theme.label}</span>
+	                                                    </button>
+	                                                ))}
+	                                            </div>
+	                                        </div>
+	                                    )}
+	                                </div>
+	                            )}
+	                            
 	                            {mode === "knowledge-graph" && (
 	                                <div className="flex flex-wrap items-center gap-1 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
 	                                    <span className="mr-1">Depth</span>

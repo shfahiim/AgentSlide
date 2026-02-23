@@ -22,13 +22,13 @@ export function useGeneration() {
     setState({ status: "complete", progress: [], result });
   }, []);
 
-  const generate = useCallback(async (prompt: string, approvedPlan?: unknown) => {
+  const generate = useCallback(async (prompt: string, theme?: string, approvedPlan?: unknown) => {
     try {
       setState({ status: "generating", progress: [] });
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, approvedPlan }),
+        body: JSON.stringify({ prompt, theme, approvedPlan }),
       });
 
       if (!res.ok || !res.body) {

@@ -1,6 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
+import crypto from "node:crypto";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
+import { previewText, traceLog } from "./trace";
 
 const genai = new GoogleGenAI({
   apiKey: process.env.GOOGLE_GENAI_API_KEY!,
@@ -44,7 +46,26 @@ export async function generateStructured<S extends z.ZodType<any, any, any>>(opt
   model?: string;
   temperature?: number;
   useJsonMode?: boolean;
+  trace?: { attempt?: number; maxRetries?: number; callId?: string };
 }): Promise<z.output<S>> {
+  const callId = opts.trace?.callId ?? crypto.randomUUID();
+  const startedAt = Date.now();
+  const model = opts.model ?? DEFAULT_MODEL;
+
+  traceLog("llm.call.start", {
+    message: `generateStructured ${opts.schemaName}`,
+    data: {
+      callId,
+      attempt: opts.trace?.attempt,
+      maxRetries: opts.trace?.maxRetries,
+      model,
+      temperature: opts.temperature ?? 0.7,
+      useJsonMode: Boolean(opts.useJsonMode),
+      systemPreview: previewText(opts.systemPrompt ?? "", 300),
+      promptPreview: previewText(opts.prompt, 700),
+    },
+  });
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const config: Record<string, any> = {
     systemInstruction: opts.systemPrompt,
@@ -57,15 +78,43 @@ export async function generateStructured<S extends z.ZodType<any, any, any>>(opt
     config.responseJsonSchema = cleanSchemaForGemini(zodToJsonSchema(opts.schema));
   }
 
-  const response = await genai.models.generateContent({
-    model: opts.model ?? DEFAULT_MODEL,
-    contents: opts.prompt,
-    config,
-  });
+  try {
+    const response = await genai.models.generateContent({
+      model,
+      contents: opts.prompt,
+      config,
+    });
 
-  const text = response.text ?? "{}";
-  const parsed = JSON.parse(text);
-  return opts.schema.parse(parsed);
+    const text = response.text ?? "{}";
+    traceLog("llm.call.response", {
+      message: `generateStructured ${opts.schemaName}`,
+      data: {
+        callId,
+        durationMs: Date.now() - startedAt,
+        responseChars: text.length,
+        responsePreview: previewText(text, 900),
+      },
+    });
+
+    const parsed = JSON.parse(text);
+    const output = opts.schema.parse(parsed);
+    traceLog("llm.call.ok", {
+      message: `Validated ${opts.schemaName}`,
+      data: { callId, durationMs: Date.now() - startedAt },
+    });
+    return output;
+  } catch (error) {
+    traceLog("llm.call.error", {
+      level: "warn",
+      message: `generateStructured ${opts.schemaName} failed`,
+      data: {
+        callId,
+        durationMs: Date.now() - startedAt,
+        error: (error as Error).message,
+      },
+    });
+    throw error;
+  }
 }
 
 /**
@@ -87,12 +136,25 @@ export async function generateStructuredWithRetry<S extends z.ZodType<any, any, 
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const callId = crypto.randomUUID();
     try {
       const prompt = lastError
         ? `${opts.prompt}\n\n---\nPREVIOUS ATTEMPT FAILED VALIDATION:\n${lastError.message}\nPlease fix the output and try again.`
         : opts.prompt;
 
-      return await generateStructured({ ...opts, prompt });
+      if (attempt > 1) {
+        traceLog("llm.call.retry", {
+          level: "warn",
+          message: `Retrying ${opts.schemaName}`,
+          data: { attempt, maxRetries, lastError: previewText(lastError?.message ?? "", 700) },
+        });
+      }
+
+      return await generateStructured({
+        ...opts,
+        prompt,
+        trace: { attempt, maxRetries, callId },
+      });
     } catch (err) {
       lastError = err as Error;
       if (attempt === maxRetries) throw lastError;
@@ -115,14 +177,43 @@ export async function generateText(opts: {
   model?: string;
   temperature?: number;
 }): Promise<string> {
-  const response = await genai.models.generateContent({
-    model: opts.model ?? DEFAULT_MODEL,
-    contents: opts.prompt,
-    config: {
-      systemInstruction: opts.systemPrompt,
+  const callId = crypto.randomUUID();
+  const startedAt = Date.now();
+  const model = opts.model ?? DEFAULT_MODEL;
+
+  traceLog("llm.text.start", {
+    message: "generateText",
+    data: {
+      callId,
+      model,
       temperature: opts.temperature ?? 0.7,
+      systemPreview: previewText(opts.systemPrompt ?? "", 300),
+      promptPreview: previewText(opts.prompt, 700),
     },
   });
 
-  return response.text ?? "";
+  try {
+    const response = await genai.models.generateContent({
+      model,
+      contents: opts.prompt,
+      config: {
+        systemInstruction: opts.systemPrompt,
+        temperature: opts.temperature ?? 0.7,
+      },
+    });
+
+    const text = response.text ?? "";
+    traceLog("llm.text.response", {
+      message: "generateText",
+      data: { callId, durationMs: Date.now() - startedAt, responseChars: text.length, responsePreview: previewText(text, 900) },
+    });
+    return text;
+  } catch (error) {
+    traceLog("llm.text.error", {
+      level: "warn",
+      message: "generateText failed",
+      data: { callId, durationMs: Date.now() - startedAt, error: (error as Error).message },
+    });
+    throw error;
+  }
 }

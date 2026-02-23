@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { HistoryListItem } from "@/lib/hooks/use-history";
 import { OutputMode } from "@/lib/types";
+import { Logo, LogoIcon } from "./logo";
 
 interface SidebarProps {
     isCollapsed: boolean;
@@ -63,11 +64,21 @@ export function Sidebar({
             animate={{ width: isCollapsed ? collapsedWidth : expandedWidth }}
             className="bg-white border-r border-zinc-200 flex flex-col h-full shrink-0 relative"
         >
+            {/* Logo */}
+            <div
+                className={cn(
+                    "h-14 border-b border-zinc-100/50 flex items-center",
+                    isCollapsed ? "justify-center px-2" : "px-4"
+                )}
+            >
+                {isCollapsed ? <LogoIcon className="h-4 w-4" /> : <Logo className="h-5" />}
+            </div>
+
             {/* Top Controls */}
             <div
                 className={cn(
-                    "h-14 border-b border-zinc-100/50 px-2 flex items-center",
-                    isCollapsed ? "justify-center" : "justify-end"
+                    "h-12 flex items-center",
+                    isCollapsed ? "justify-center px-2" : "justify-end px-2"
                 )}
             >
                 <button

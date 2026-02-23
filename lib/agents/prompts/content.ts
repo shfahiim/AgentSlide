@@ -14,8 +14,8 @@ HARD RULES (non-negotiable):
 - If visualIntent is anything else, do NOT include a chart visual
 - If visualIntent is "big_number", include exactly ONE big_number visual
 - If visualIntent is "comparison_table", include exactly ONE table visual (2-4 columns, 2-7 rows)
-- If visualIntent is "photo_grid"/"infographic"/"map", include 1-3 image visuals (each with query + alt)
 - If visualIntent is "quote", set bullets to ONE quote and put the attribution in subtitle
+- DO NOT generate image visuals (type: "image") - images are not supported
 
 Content quality rules:
 - Bullets should be concise insights, NOT full sentences

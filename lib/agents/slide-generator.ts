@@ -10,8 +10,11 @@ import {
 } from "../schemas";
 import { DeckPlan, SlideSpec } from "../types";
 import { CONTENT_SYSTEM_PROMPT } from "./prompts/content";
+import { previewText, traceLog } from "../trace";
 
 const TEMPERATURE = parseFloat(process.env.GEMINI_TEMPERATURE_CONTENT || "0.7");
+const MIN_IMAGES_PER_DECK = 1;
+const MAX_IMAGES_PER_DECK = 3;
 
 /** Zod schema for the batched response — an array of SlideSpecs */
 const BatchedSlidesSchema = z.object({
@@ -275,7 +278,7 @@ Rules:
   - If VisualIntent is none/quote/map/photo_grid/comparison_table/infographic/big_number, do NOT include a chart visual.
 - If visualIntent is "big_number", include EXACTLY ONE big_number visual.
 - If visualIntent is "comparison_table", include EXACTLY ONE table visual.
-- If visualIntent is "photo_grid"/"infographic"/"map", include 1-3 image visuals.
+  - If visualIntent is "photo_grid"/"infographic"/"map", include 1-3 image visuals.
 - If visualIntent is "quote", set bullets to a single quote and put the speaker/attribution in subtitle.
 - Only include visuals that match each slide's visual intent.
 - If visualIntent is "none", use an empty visuals array.`;
@@ -323,6 +326,11 @@ Generate exactly ${plan.slideCount} slides in the array, one for each slide plan
     useJsonMode: true,
   });
 
+  traceLog("slides.batch.done", {
+    message: "Batched slide JSON generated",
+    data: { planned: plan.slideCount, received: result.slides.length },
+  });
+
   // Enforce plan constraints deterministically:
   // - layout must match layoutHint
   // - chart slides must include a valid chart asset with the correct chartType
@@ -332,11 +340,21 @@ Generate exactly ${plan.slideCount} slides in the array, one for each slide plan
   );
 
   const enforced: SlideSpec[] = [];
-  for (const planSlide of plan.slides) {
+  for (const [idx, planSlide] of plan.slides.entries()) {
     const slide = bySlideNumber.get(planSlide.slideNumber);
     if (!slide) {
       throw new Error(`Missing generated slide ${planSlide.slideNumber} (plan requires ${plan.slideCount} slides)`);
     }
+
+    traceLog("slide.enforce.start", {
+      message: `Slide ${planSlide.slideNumber} enforcing intent/layout`,
+      data: {
+        slideNumber: planSlide.slideNumber,
+        visualIntent: planSlide.visualIntent,
+        layoutHint: planSlide.layoutHint,
+        title: previewText(slide.title, 120),
+      },
+    });
 
     const required = requiredChartType(planSlide.visualIntent);
     let visuals = slide.visuals ?? [];
@@ -449,12 +467,86 @@ Generate exactly ${plan.slideCount} slides in the array, one for each slide plan
       layout,
       visuals,
     });
+
+    traceLog("slide.enforce.done", {
+      message: `Slide ${planSlide.slideNumber} ready`,
+      data: {
+        slideNumber: planSlide.slideNumber,
+        layout,
+        bullets: slide.bullets.length,
+        visuals: visuals.map((v) => v.type),
+      },
+    });
+
+    onProgress?.(idx + 1, plan.slides.length);
   }
 
-  // Report all slides as done
-  enforced.forEach((_, idx) => {
-    onProgress?.(idx + 1, plan.slides.length);
-  });
+  let normalized = enforced.sort((a, b) => a.slideNumber - b.slideNumber);
 
-  return enforced.sort((a, b) => a.slideNumber - b.slideNumber);
+  // Enforce deck-wide image bounds: always keep 1-3 image visuals total.
+  const imageRefs = normalized.flatMap((slide, slideIdx) =>
+    slide.visuals
+      .map((v, visualIdx) => ({ slideIdx, visualIdx, type: v.type }))
+      .filter((ref) => ref.type === "image"),
+  );
+
+  if (imageRefs.length > MAX_IMAGES_PER_DECK) {
+    const keepKeys = new Set(
+      imageRefs
+        .slice(0, MAX_IMAGES_PER_DECK)
+        .map((ref) => `${ref.slideIdx}:${ref.visualIdx}`),
+    );
+
+    normalized = normalized.map((slide, slideIdx) => {
+      const visuals = slide.visuals.filter((_, visualIdx) =>
+        keepKeys.has(`${slideIdx}:${visualIdx}`) || slide.visuals[visualIdx]?.type !== "image",
+      );
+
+      const hasVisual = visuals.length > 0;
+      const layout =
+        (slide.layout === "full_visual" || slide.layout === "big_number") && !hasVisual
+          ? "bullets"
+          : slide.layout;
+
+      return { ...slide, visuals, layout };
+    });
+
+    traceLog("slides.images.capped", {
+      level: "warn",
+      message: "Capped deck image visuals to max",
+      data: { before: imageRefs.length, after: MAX_IMAGES_PER_DECK, max: MAX_IMAGES_PER_DECK },
+    });
+  }
+
+  const finalImageCount = normalized.flatMap((s) => s.visuals).filter((v) => v.type === "image").length;
+  if (finalImageCount < MIN_IMAGES_PER_DECK) {
+    const eligiblePlan = plan.slides.find((s) => s.layoutHint !== "title_slide");
+    const targetSlide = normalized.find((s) => s.slideNumber === (eligiblePlan?.slideNumber ?? 1));
+    if (targetSlide) {
+      const img = await generateImageForSlide({
+        slideNumber: targetSlide.slideNumber,
+        purpose: eligiblePlan?.purpose ?? "supporting visual",
+        title: targetSlide.title,
+        hint: "infographic",
+        researchNotes,
+      });
+
+      normalized = normalized.map((slide) =>
+        slide.slideNumber === targetSlide.slideNumber
+          ? {
+              ...slide,
+              layout: "full_visual",
+              visuals: [img, ...slide.visuals.filter((v) => v.type !== "image")].slice(0, 3),
+            }
+          : slide,
+      );
+
+      traceLog("slides.images.injected", {
+        message: "Injected fallback image to satisfy minimum image count",
+        data: { min: MIN_IMAGES_PER_DECK, targetSlideNumber: targetSlide.slideNumber },
+      });
+    }
+  }
+
+  return normalized;
 }

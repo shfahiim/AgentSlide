@@ -1,5 +1,56 @@
 import { z } from "zod";
 
+function normalizeWhitespace(input: string) {
+  return input.trim().replace(/\s+/g, " ");
+}
+
+function trimToSentenceOrWord(input: string, maxLen: number) {
+  const normalized = normalizeWhitespace(input);
+  if (normalized.length <= maxLen) return normalized;
+
+  // Prefer cutting at a sentence boundary within the limit.
+  const slice = normalized.slice(0, maxLen);
+  const lastStop = Math.max(
+    slice.lastIndexOf("."),
+    slice.lastIndexOf("!"),
+    slice.lastIndexOf("?"),
+  );
+
+  if (lastStop >= 20) {
+    return slice.slice(0, lastStop + 1).trimEnd();
+  }
+
+  // Fall back to last space to avoid mid-word cuts.
+  const lastSpace = slice.lastIndexOf(" ");
+  if (lastSpace >= 20) {
+    return `${slice.slice(0, lastSpace).trimEnd()}…`;
+  }
+
+  return `${slice.trimEnd()}…`;
+}
+
+const TitleTextSchema = z.preprocess((value) => {
+  if (typeof value !== "string") return value;
+  const normalized = normalizeWhitespace(value);
+  if (!normalized) return value;
+  return trimToSentenceOrWord(normalized, 80);
+}, z.string().max(80));
+
+const SubtitleTextSchema = z.preprocess((value) => {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value !== "string") return value;
+  const normalized = normalizeWhitespace(value);
+  if (!normalized) return undefined;
+  return trimToSentenceOrWord(normalized, 120);
+}, z.string().max(120).optional());
+
+const BulletTextSchema = z.preprocess((value) => {
+  if (typeof value !== "string") return value;
+  const normalized = normalizeWhitespace(value);
+  if (!normalized) return value;
+  return trimToSentenceOrWord(normalized, 100);
+}, z.string().max(100));
+
 export const ChartAssetSchema = z.object({
   type: z.literal("chart"),
   chartType: z.enum(["bar", "line", "pie", "timeline", "area"]),
@@ -56,6 +107,12 @@ export const ImageAssetSchema = z.object({
   url: z.string().url().optional(),
   alt: z.string(),
   cropMode: z.enum(["fill", "fit", "contain"]).default("fill"),
+  /** When images are materialized and saved locally, this is the saved filename under output/<deckId>/assets/. */
+  fileName: z.string().max(240).optional(),
+  /** e.g. "image/png" */
+  mimeType: z.string().max(80).optional(),
+  /** Source/provider used to resolve this image. */
+  provider: z.enum(["unsplash", "gemini"]).optional(),
 });
 
 export const TableAssetSchema = z.object({
@@ -153,9 +210,12 @@ export const DeckPlanSchema = z.object({
 export const SlideSpecSchema = z
   .object({
     slideNumber: z.number(),
-    title: z.string().max(80),
-    subtitle: z.string().max(120).optional(),
-    bullets: z.array(z.string().max(100)).max(6),
+    title: TitleTextSchema,
+    subtitle: SubtitleTextSchema,
+    bullets: z.preprocess((value) => {
+      if (!Array.isArray(value)) return value;
+      return value.slice(0, 6);
+    }, z.array(BulletTextSchema).max(6)),
     speakerNotes: z.preprocess((value) => {
       if (value === null || value === undefined) return undefined;
       if (typeof value !== "string") return value;

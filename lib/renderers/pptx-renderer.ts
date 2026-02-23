@@ -1,6 +1,8 @@
 import PptxGenJS from "pptxgenjs";
 import { DeckSpec, SlideSpec, ThemeSpec } from "../types";
 import { renderChartToPng, getVegaLiteSpec } from "./chart-renderer";
+import { join } from "path";
+import { traceLog } from "../trace";
 
 function unhash(color: string): string {
   return color.replace("#", "");
@@ -289,12 +291,37 @@ function renderTwoColumnSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: Th
   }
 }
 
-async function renderFullVisualSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: ThemeSpec) {
+async function renderFullVisualSlide(
+  slide: PptxGenJS.Slide,
+  spec: SlideSpec,
+  theme: ThemeSpec,
+  opts?: { assetDir?: string },
+) {
   // Full-bleed visual with title overlay
   const image = spec.visuals.find((a) => a.type === "image");
   if (image && image.type === "image" && image.url) {
     try {
-      slide.addImage({ path: image.url, x: 0, y: 0, w: 13.33, h: 7.5 });
+      // Prefer locally materialized assets when present; fall back to fetching remote URLs.
+      if (image.fileName && opts?.assetDir) {
+        const localPath = join(opts.assetDir, image.fileName);
+        slide.addImage({ path: localPath, x: 0, y: 0, w: 13.33, h: 7.5 });
+      } else if (/^data:image\//i.test(image.url)) {
+        slide.addImage({ data: image.url, x: 0, y: 0, w: 13.33, h: 7.5 });
+      } else if (/^https?:\/\//i.test(image.url)) {
+        const res = await fetch(image.url);
+        if (!res.ok) throw new Error(`Failed to fetch image (${res.status})`);
+        const buf = Buffer.from(await res.arrayBuffer());
+        const ct = res.headers.get("content-type") ?? "image/png";
+        slide.addImage({
+          data: `data:${ct};base64,${buf.toString("base64")}`,
+          x: 0,
+          y: 0,
+          w: 13.33,
+          h: 7.5,
+        });
+      } else {
+        slide.addImage({ path: image.url, x: 0, y: 0, w: 13.33, h: 7.5 });
+      }
     } catch {
       // ignore
     }
@@ -381,6 +408,7 @@ async function renderSlide(
   slide: PptxGenJS.Slide,
   spec: SlideSpec,
   theme: ThemeSpec,
+  opts?: { assetDir?: string },
 ): Promise<void> {
   switch (spec.layout) {
     case "title_slide":
@@ -396,7 +424,7 @@ async function renderSlide(
       renderTwoColumnSlide(slide, spec, theme);
       break;
     case "full_visual":
-      await renderFullVisualSlide(slide, spec, theme);
+      await renderFullVisualSlide(slide, spec, theme, opts);
       break;
     case "big_number":
       renderBigNumberSlide(slide, spec, theme);
@@ -415,7 +443,9 @@ async function renderSlide(
 export async function renderToPptx(
   deckSpec: DeckSpec,
   theme: ThemeSpec,
+  opts?: { assetDir?: string },
 ): Promise<Buffer> {
+  const startedAt = Date.now();
   const pptx = new PptxGenJS();
 
   // Global settings
@@ -430,13 +460,30 @@ export async function renderToPptx(
     background: { color: unhash(theme.colors.background) },
   });
 
+  traceLog("pptx.render.start", {
+    message: "PPTX rendering started",
+    data: { slides: deckSpec.slides.length, theme: deckSpec.plan.suggestedTheme },
+  });
+
   // Render each slide
   for (const slideSpec of deckSpec.slides) {
+    traceLog("pptx.slide.start", {
+      message: `Rendering slide ${slideSpec.slideNumber}`,
+      data: { slideNumber: slideSpec.slideNumber, layout: slideSpec.layout },
+    });
     const slide = pptx.addSlide({ masterName: "MAIN" });
-    await renderSlide(slide, slideSpec, theme);
+    await renderSlide(slide, slideSpec, theme, opts);
+    traceLog("pptx.slide.done", {
+      message: `Rendered slide ${slideSpec.slideNumber}`,
+      data: { slideNumber: slideSpec.slideNumber },
+    });
   }
 
   // Generate buffer
   const arrayBuffer = (await pptx.write({ outputType: "arraybuffer" })) as ArrayBuffer;
+  traceLog("pptx.render.done", {
+    message: "PPTX rendering finished",
+    data: { durationMs: Date.now() - startedAt },
+  });
   return Buffer.from(arrayBuffer);
 }

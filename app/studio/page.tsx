@@ -253,7 +253,7 @@ export default function StudioPage() {
 
       <div className="flex-1 flex relative overflow-hidden">
         <div
-          className="flex flex-col border-r border-zinc-200 h-full"
+          className="flex flex-col border-r border-zinc-200 h-full overflow-hidden"
           style={{ width: `${100 - previewWidth}%` }}
         >
           <ChatInterface
