@@ -461,21 +461,7 @@ Generate exactly ${batch.length} slides in the array, one for each slide plan ab
       }
     }
 
-    if (!required && (intent === "photo_grid" || intent === "infographic" || intent === "map")) {
-      const images = visuals.filter((v) => v.type === "image");
-      if (images.length === 0) {
-        const img = await generateImageForSlide({
-          slideNumber: slide.slideNumber,
-          purpose: planSlide.purpose,
-          title: slide.title,
-          hint: intent,
-          researchNotes,
-        });
-        visuals = [img].slice(0, 3);
-      } else {
-        visuals = images.slice(0, 3);
-      }
-    }
+    // Images are not supported - skip image generation entirely
 
     let layout: SlideSpec["layout"] = planSlide.layoutHint;
 

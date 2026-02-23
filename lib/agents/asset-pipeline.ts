@@ -61,7 +61,7 @@ function chartToVegaLite(
 /**
  * Process all asset specs in all slides.
  * - Charts: convert to Vega-Lite specs
- * - Images: resolve URLs (MVP: Unsplash)
+ * - Images: REMOVE (not supported)
  * - Tables/BigNumbers: pass through as-is
  */
 export async function runAssetPipeline(
@@ -69,18 +69,13 @@ export async function runAssetPipeline(
 ): Promise<SlideSpec[]> {
   return slides.map((slide) => ({
     ...slide,
-    visuals: slide.visuals.map((asset) => {
-      if (asset.type === "chart") {
-        return { ...asset, vegaLiteSpec: chartToVegaLite(asset) };
-      }
-      if (asset.type === "image" && !asset.url) {
-        // MVP: Use Unsplash for free stock images
-        return {
-          ...asset,
-          url: `https://source.unsplash.com/800x600/?${encodeURIComponent(asset.query)}`,
-        };
-      }
-      return asset;
-    }),
+    visuals: slide.visuals
+      .filter((asset) => asset.type !== "image") // Remove all images
+      .map((asset) => {
+        if (asset.type === "chart") {
+          return { ...asset, vegaLiteSpec: chartToVegaLite(asset) };
+        }
+        return asset;
+      }),
   }));
 }
