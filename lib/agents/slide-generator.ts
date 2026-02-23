@@ -284,8 +284,8 @@ Rules:
 - If visualIntent is "none", use an empty visuals array.`;
 
 /**
- * Generates ALL slides in a single API call.
- * This reduces N API calls down to 1, significantly cutting latency and cost.
+ * Generates slides in batches for better parallelism.
+ * Splits slides into groups and generates them concurrently.
  */
 export async function runSlideGeneration(
   plan: DeckPlan,
@@ -294,14 +294,28 @@ export async function runSlideGeneration(
 ): Promise<SlideSpec[]> {
   onProgress?.(0, plan.slides.length);
 
-  const slidePlans = plan.slides
-    .map(
-      (s) =>
-        `- Slide ${s.slideNumber}: Purpose="${s.purpose}", VisualIntent="${s.visualIntent}", Layout="${s.layoutHint}"`,
-    )
-    .join("\n");
+  const BATCH_SIZE = 3; // Generate 3 slides per batch
+  const batches: DeckPlan["slides"][] = [];
+  
+  for (let i = 0; i < plan.slides.length; i += BATCH_SIZE) {
+    batches.push(plan.slides.slice(i, i + BATCH_SIZE));
+  }
 
-  const prompt = `Generate content for ALL ${plan.slideCount} slides of the presentation "${plan.title}".
+  traceLog("slides.batching", {
+    message: "Split slides into batches",
+    data: { totalSlides: plan.slides.length, batches: batches.length, batchSize: BATCH_SIZE },
+  });
+
+  // Generate all batches in parallel (max 3 concurrent)
+  const batchPromises = batches.map(async (batch, batchIndex) => {
+    const slidePlans = batch
+      .map(
+        (s) =>
+          `- Slide ${s.slideNumber}: Purpose="${s.purpose}", VisualIntent="${s.visualIntent}", Layout="${s.layoutHint}"`,
+      )
+      .join("\n");
+
+    const prompt = `Generate content for ${batch.length} slides of the presentation "${plan.title}".
 
 Slide plans:
 ${slidePlans}
@@ -315,20 +329,37 @@ ${researchNotes}
 
 ${SLIDES_JSON_FORMAT}
 
-Generate exactly ${plan.slideCount} slides in the array, one for each slide plan above.`;
+Generate exactly ${batch.length} slides in the array, one for each slide plan above.`;
 
-  const result = await generateStructuredWithRetry({
-    prompt,
-    systemPrompt: CONTENT_SYSTEM_PROMPT,
-    schema: BatchedSlidesSchema,
-    schemaName: "BatchedSlides",
-    temperature: TEMPERATURE,
-    useJsonMode: true,
+    traceLog("slides.batch.start", {
+      message: `Batch ${batchIndex + 1}/${batches.length} starting`,
+      data: { slides: batch.map(s => s.slideNumber) },
+    });
+
+    const result = await generateStructuredWithRetry({
+      prompt,
+      systemPrompt: CONTENT_SYSTEM_PROMPT,
+      schema: BatchedSlidesSchema,
+      schemaName: "BatchedSlides",
+      temperature: TEMPERATURE,
+      useJsonMode: true,
+    });
+
+    traceLog("slides.batch.done", {
+      message: `Batch ${batchIndex + 1}/${batches.length} complete`,
+      data: { planned: batch.length, received: result.slides.length },
+    });
+
+    return result.slides;
   });
 
-  traceLog("slides.batch.done", {
-    message: "Batched slide JSON generated",
-    data: { planned: plan.slideCount, received: result.slides.length },
+  // Wait for all batches to complete
+  const batchResults = await Promise.all(batchPromises);
+  const allSlides = batchResults.flat();
+
+  traceLog("slides.all.done", {
+    message: "All batches complete",
+    data: { totalSlides: allSlides.length },
   });
 
   // Enforce plan constraints deterministically:
@@ -336,7 +367,7 @@ Generate exactly ${plan.slideCount} slides in the array, one for each slide plan
   // - chart slides must include a valid chart asset with the correct chartType
   // - non-chart slides must not include chart assets
   const bySlideNumber = new Map<number, SlideSpec>(
-    result.slides.map((s) => [s.slideNumber, s]),
+    allSlides.map((s) => [s.slideNumber, s]),
   );
 
   const enforced: SlideSpec[] = [];

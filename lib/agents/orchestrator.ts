@@ -77,22 +77,30 @@ export async function runPipeline(opts: OrchestratorOptions): Promise<DeckSpec> 
     },
   });
 
-  // ─── Step C: Research (optional — graceful degradation) ───
+  // ─── Step C: Research (async — runs in parallel with generation) ───
   traceLog("pipeline.step.start", { message: "research" });
   emit(onProgress, "research", "running", "Researching key facts...");
-  let researchNotes = "";
-  try {
-    researchNotes = await runResearch(plan);
-    emit(onProgress, "research", "done", "Research complete");
-    traceLog("pipeline.step.done", { message: "research", data: { chars: researchNotes.length } });
-  } catch {
-    emit(onProgress, "research", "skipped", "Skipped research (non-critical)");
-    traceLog("pipeline.step.skipped", { level: "warn", message: "research" });
-  }
+  
+  // Start research but don't wait for it
+  const researchPromise = runResearch(plan)
+    .then((notes) => {
+      emit(onProgress, "research", "done", "Research complete");
+      traceLog("pipeline.step.done", { message: "research", data: { chars: notes.length } });
+      return notes;
+    })
+    .catch(() => {
+      emit(onProgress, "research", "skipped", "Skipped research (non-critical)");
+      traceLog("pipeline.step.skipped", { level: "warn", message: "research" });
+      return ""; // Return empty string on failure
+    });
 
-  // ─── Step D: Slide Generation ─────────────────────────────
+  // ─── Step D: Slide Generation (starts immediately, waits for research) ─────────────
   traceLog("pipeline.step.start", { message: "generation" });
   emit(onProgress, "generation", "running", "Generating slide content...");
+  
+  // Wait for research to complete before generating slides
+  const researchNotes = await researchPromise;
+  
   const rawSlides = await runSlideGeneration(plan, researchNotes, (current, total) => {
     emit(onProgress, "generation", "running", "Generating slides...", `Slide ${current}/${total}`);
   });

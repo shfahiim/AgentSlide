@@ -36,7 +36,7 @@ interface ChatInterfaceProps {
     initialUserPrompt?: string;
     mode: OutputMode;
     setMode: (mode: OutputMode) => void;
-    slideGeneration: GenerationState & { generate: (prompt: string) => Promise<void> };
+    slideGeneration: GenerationState & { generate: (prompt: string, theme?: string) => Promise<void> };
     webpageGeneration: WebpageGenerationState & { generate: (prompt: string) => Promise<void> };
     knowledgeGraphGeneration: KnowledgeGraphGenerationState & {
         generate: (prompt: string, depth?: number) => Promise<void>;
