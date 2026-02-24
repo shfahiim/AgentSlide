@@ -17,7 +17,6 @@ import { SlideRenderer } from "@/components/presentation/slide-renderer";
 import { GenerationState } from "@/lib/hooks/use-generation";
 import { WebpageGenerationState } from "@/lib/hooks/use-webpage-generation";
 import { KnowledgeGraphGenerationState } from "@/lib/hooks/use-knowledge-graph-generation";
-import { StudyYtGenerationState } from "@/lib/hooks/use-study-yt-generation";
 import Link from "next/link";
 import { useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -39,7 +38,6 @@ interface PreviewPanelProps {
     knowledgeGraphGeneration: KnowledgeGraphGenerationState & {
         generate: (prompt: string, depth?: number) => Promise<void>;
     };
-    studyYtGeneration: StudyYtGenerationState & { generate: (urlOrId: string) => Promise<void> };
     deck: DeckSpec | null;
     currentSlideIndex: number;
     setCurrentSlideIndex: (index: number) => void;
@@ -51,7 +49,6 @@ export function PreviewPanel({
     slideGeneration,
     webpageGeneration,
     knowledgeGraphGeneration,
-    studyYtGeneration,
     deck,
     currentSlideIndex,
     setCurrentSlideIndex,
@@ -62,8 +59,6 @@ export function PreviewPanel({
     const deckId = slideGeneration.result?.deckId;
     const webpageHtml = webpageGeneration.result?.html;
     const webpageId = webpageGeneration.result?.pageId;
-    const studyHtml = studyYtGeneration.result?.html;
-    const studyPageId = studyYtGeneration.result?.pageId;
     const kgHtml = knowledgeGraphGeneration.result?.html;
     const graphId = knowledgeGraphGeneration.result?.graphId;
 
@@ -72,8 +67,6 @@ export function PreviewPanel({
             ? slideGeneration
             : mode === "webpage"
                 ? webpageGeneration
-                : mode === "study-yt"
-                    ? studyYtGeneration
                 : knowledgeGraphGeneration;
 
     const isGenerating = currentGen.status === "generating";
@@ -81,10 +74,9 @@ export function PreviewPanel({
 
     const iframeSrcDoc = useMemo(() => {
         if (mode === "webpage") return webpageHtml;
-        if (mode === "study-yt") return studyHtml;
         if (mode === "knowledge-graph") return kgHtml;
         return undefined;
-    }, [mode, webpageHtml, studyHtml, kgHtml]);
+    }, [mode, webpageHtml, kgHtml]);
 
     const progressByStep = useMemo(() => {
         const map = new Map<AgentStepName, PipelineProgress>();
@@ -107,13 +99,10 @@ export function PreviewPanel({
     }, [currentGen.progress]);
 
     const handleDownloadHtml = () => {
-        const html =
-            mode === "webpage" ? webpageHtml : mode === "study-yt" ? studyHtml : kgHtml;
+        const html = mode === "webpage" ? webpageHtml : kgHtml;
         const title =
             mode === "webpage"
                 ? webpageGeneration.result?.title
-                : mode === "study-yt"
-                    ? studyYtGeneration.result?.title
                 : knowledgeGraphGeneration.result?.title;
 
         if (!html) return;
@@ -127,12 +116,12 @@ export function PreviewPanel({
     };
 
     const handleOpenInNewTab = () => {
-        const id = mode === "webpage" ? webpageId : mode === "study-yt" ? studyPageId : graphId;
+        const id = mode === "webpage" ? webpageId : graphId;
         if (id) {
             window.open(`/api/output-html?id=${encodeURIComponent(id)}`, "_blank");
             return;
         }
-        const html = mode === "webpage" ? webpageHtml : mode === "study-yt" ? studyHtml : kgHtml;
+        const html = mode === "webpage" ? webpageHtml : kgHtml;
         if (!html) return;
         const blob = new Blob([html], { type: "text/html" });
         const url = URL.createObjectURL(blob);
@@ -148,8 +137,6 @@ export function PreviewPanel({
 	                        ? `Slide ${currentSlideIndex + 1} of ${slides.length}`
 	                        : mode === "webpage" && isComplete
 	                            ? "Webpage Preview"
-	                            : mode === "study-yt" && isComplete
-	                                ? "Study Preview"
 	                            : mode === "knowledge-graph" && isComplete
 	                                ? "Knowledge Graph Preview"
 	                                : "Preview"}
@@ -175,7 +162,7 @@ export function PreviewPanel({
                         </Link>
                     )}
 
-	                    {(mode === "webpage" || mode === "study-yt" || mode === "knowledge-graph") && iframeSrcDoc && (
+	                    {(mode === "webpage" || mode === "knowledge-graph") && iframeSrcDoc && (
 	                        <>
 	                            <button
 	                                onClick={handleDownloadHtml}
@@ -244,7 +231,7 @@ export function PreviewPanel({
                                                             </div>
                                                             <div className="absolute right-6 bottom-6 h-24 w-24 rounded-2xl bg-emerald-100/60 border border-emerald-200/60" />
                                                         </div>
-	                                                    ) : mode === "webpage" || mode === "study-yt" ? (
+	                                                    ) : mode === "webpage" ? (
 	                                                        <div className="relative p-5 h-full">
 	                                                            <div className="h-8 rounded-xl border border-zinc-200/60 bg-white/80 flex items-center px-3 gap-2">
 	                                                                <div className="size-2 rounded-full bg-zinc-200" />
@@ -402,7 +389,7 @@ export function PreviewPanel({
                                 </ErrorBoundary>
                             </div>
                         </motion.div>
-	                    ) : (mode === "webpage" || mode === "study-yt" || mode === "knowledge-graph") && iframeSrcDoc ? (
+	                    ) : (mode === "webpage" || mode === "knowledge-graph") && iframeSrcDoc ? (
 	                        <motion.iframe
 	                            key="iframe-result"
 	                            initial={{ opacity: 0 }}
