@@ -18,7 +18,6 @@ import { useState, useRef, useEffect } from "react";
 import { GenerationState } from "@/lib/hooks/use-generation";
 import { WebpageGenerationState } from "@/lib/hooks/use-webpage-generation";
 import { KnowledgeGraphGenerationState } from "@/lib/hooks/use-knowledge-graph-generation";
-import { StudyYtGenerationState } from "@/lib/hooks/use-study-yt-generation";
 import { PipelineProgress, AgentStepName } from "@/lib/types";
 import { OutputMode } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
@@ -41,7 +40,6 @@ interface ChatInterfaceProps {
     knowledgeGraphGeneration: KnowledgeGraphGenerationState & {
         generate: (prompt: string, depth?: number) => Promise<void>;
     };
-    studyYtGeneration: StudyYtGenerationState & { generate: (urlOrId: string) => Promise<void> };
 }
 
 const STEP_LABELS: Record<AgentStepName, string> = {
@@ -172,7 +170,6 @@ export function ChatInterface({
     slideGeneration,
     webpageGeneration,
     knowledgeGraphGeneration,
-    studyYtGeneration,
 }: ChatInterfaceProps) {
     const [input, setInput] = useState("");
     const [kgDepth, setKgDepth] = useState(2);
@@ -237,14 +234,11 @@ export function ChatInterface({
             ? slideGeneration
             : mode === "webpage"
                 ? webpageGeneration
-                : mode === "study-yt"
-                    ? studyYtGeneration
                 : knowledgeGraphGeneration;
     const isGenerating =
         slideGeneration.status === "generating" ||
         webpageGeneration.status === "generating" ||
-        knowledgeGraphGeneration.status === "generating" ||
-        studyYtGeneration.status === "generating";
+        knowledgeGraphGeneration.status === "generating";
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -338,24 +332,6 @@ export function ChatInterface({
         }
     }, [knowledgeGraphGeneration.status, knowledgeGraphGeneration.result]);
 
-    // Study YT result
-    useEffect(() => {
-        if (studyYtGeneration.status === "complete" && studyYtGeneration.result && !hasAddedResult.current) {
-            hasAddedResult.current = true;
-            const r = studyYtGeneration.result;
-            setMessages((prev) => [
-                ...prev,
-                {
-                    id: `result-${Date.now()}`,
-                    role: "assistant",
-                    content: `"${r.title}" is ready.`,
-                    type: "result",
-                    links: [{ label: "Open", href: `/api/output-html?id=${r.pageId}` }],
-                },
-            ]);
-        }
-    }, [studyYtGeneration.status, studyYtGeneration.result]);
-
     // Error handling
     useEffect(() => {
         if (slideGeneration.status === "error" && slideGeneration.error) {
@@ -399,20 +375,6 @@ export function ChatInterface({
         }
     }, [knowledgeGraphGeneration.status, knowledgeGraphGeneration.error]);
 
-    useEffect(() => {
-        if (studyYtGeneration.status === "error" && studyYtGeneration.error) {
-            setMessages((prev) => [
-                ...prev,
-                {
-                    id: `error-${Date.now()}`,
-                    role: "assistant",
-                    content: `Something went wrong: ${studyYtGeneration.error}`,
-                    type: "error",
-                },
-            ]);
-        }
-    }, [studyYtGeneration.status, studyYtGeneration.error]);
-
     const handleSend = async () => {
         if (!input.trim() || isGenerating) return;
 
@@ -421,9 +383,7 @@ export function ChatInterface({
                 ? "Slides"
                 : mode === "webpage"
                     ? "Webpage"
-                    : mode === "study-yt"
-                        ? "Study YT"
-                        : "Knowledge Graph";
+                    : "Knowledge Graph";
 
         const userMsg: Message = {
             id: Date.now().toString(),
@@ -439,8 +399,6 @@ export function ChatInterface({
             slideGeneration.generate(prompt, selectedTheme);
         } else if (mode === "webpage") {
             webpageGeneration.generate(prompt);
-        } else if (mode === "study-yt") {
-            studyYtGeneration.generate(prompt);
         } else {
             knowledgeGraphGeneration.generate(prompt, kgDepth);
         }
@@ -450,7 +408,6 @@ export function ChatInterface({
         slides: "Describe your presentation...",
         webpage: "Describe the webpage you want (topic, data, style)...",
         "knowledge-graph": "Enter a topic to map as a knowledge graph...",
-        "study-yt": "Paste a YouTube link (or video ID)…",
     };
 
     return (

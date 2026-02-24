@@ -6,7 +6,6 @@ import { PreviewPanel } from "@/components/preview-panel";
 import { useGeneration } from "@/lib/hooks/use-generation";
 import { useWebpageGeneration } from "@/lib/hooks/use-webpage-generation";
 import { useKnowledgeGraphGeneration } from "@/lib/hooks/use-knowledge-graph-generation";
-import { useStudyYtGeneration } from "@/lib/hooks/use-study-yt-generation";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { DeckSpec, OutputMode } from "@/lib/types";
 import { getTheme, themeToCssVars } from "@/lib/themes";
@@ -22,7 +21,6 @@ export default function StudioPage() {
   const slideGeneration = useGeneration();
   const webpageGeneration = useWebpageGeneration();
   const knowledgeGraphGeneration = useKnowledgeGraphGeneration();
-  const studyYtGeneration = useStudyYtGeneration();
   const history = useHistory();
   const [deck, setDeck] = useState<DeckSpec | null>(null);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
@@ -54,7 +52,7 @@ export default function StudioPage() {
   }, [slideGeneration.status, slideGeneration.result?.deckId]);
 
   // Refresh history when new outputs are created
-  const lastHistoryIdRef = useRef<{ slides?: string; webpage?: string; kg?: string; studyYt?: string }>({});
+  const lastHistoryIdRef = useRef<{ slides?: string; webpage?: string; kg?: string }>({});
   useEffect(() => {
     const id = slideGeneration.result?.deckId;
     if (
@@ -90,18 +88,6 @@ export default function StudioPage() {
       history.refresh();
     }
   }, [knowledgeGraphGeneration.status, knowledgeGraphGeneration.result?.graphId, history]);
-
-  useEffect(() => {
-    const id = studyYtGeneration.result?.pageId;
-    if (
-      studyYtGeneration.status === "complete" &&
-      id &&
-      lastHistoryIdRef.current.studyYt !== id
-    ) {
-      lastHistoryIdRef.current.studyYt = id;
-      history.refresh();
-    }
-  }, [studyYtGeneration.status, studyYtGeneration.result?.pageId, history]);
 
   // Theme CSS vars for slide preview
   const themeStyle = useMemo(() => {
@@ -142,8 +128,7 @@ export default function StudioPage() {
     slideGeneration.reset();
     webpageGeneration.reset();
     knowledgeGraphGeneration.reset();
-    studyYtGeneration.reset();
-  }, [knowledgeGraphGeneration, slideGeneration, studyYtGeneration, webpageGeneration]);
+  }, [knowledgeGraphGeneration, slideGeneration, webpageGeneration]);
 
   const handleNew = useCallback(() => {
     resetAll();
@@ -174,7 +159,6 @@ export default function StudioPage() {
             deck?: DeckSpec;
           }
         | { mode: "webpage"; result: { pageId: string; title: string; html: string } }
-        | { mode: "study-yt"; result: { pageId: string; title: string; html: string; videoId?: string; videoUrl?: string } }
         | {
             mode: "knowledge-graph";
             result: { graphId: string; title: string; html: string; graphData: unknown };
@@ -194,12 +178,6 @@ export default function StudioPage() {
         return;
       }
 
-      if (json.mode === "study-yt") {
-        setMode("study-yt");
-        studyYtGeneration.hydrate(json.result);
-        return;
-      }
-
       setMode("knowledge-graph");
       knowledgeGraphGeneration.hydrate({
         graphId: json.result.graphId,
@@ -209,7 +187,7 @@ export default function StudioPage() {
         graphData: json.result.graphData as any,
       });
     },
-    [history.items, knowledgeGraphGeneration, resetAll, slideGeneration, studyYtGeneration, webpageGeneration],
+    [history.items, knowledgeGraphGeneration, resetAll, slideGeneration, webpageGeneration],
   );
 
   const handleDeleteHistory = useCallback(
@@ -264,7 +242,6 @@ export default function StudioPage() {
             slideGeneration={slideGeneration}
             webpageGeneration={webpageGeneration}
             knowledgeGraphGeneration={knowledgeGraphGeneration}
-            studyYtGeneration={studyYtGeneration}
           />
         </div>
 
@@ -287,7 +264,6 @@ export default function StudioPage() {
             slideGeneration={slideGeneration}
             webpageGeneration={webpageGeneration}
             knowledgeGraphGeneration={knowledgeGraphGeneration}
-            studyYtGeneration={studyYtGeneration}
             deck={deck}
             currentSlideIndex={currentSlideIndex}
             setCurrentSlideIndex={setCurrentSlideIndex}
