@@ -48,15 +48,22 @@ export interface KnowledgeGraphResult {
   graphData: KnowledgeGraphData;
 }
 
-const KG_RESEARCH_PROMPT = `You are a research assistant specialized in knowledge extraction.
-Analyze the given topic thoroughly and provide structured information about:
-- Key concepts and entities involved
-- Relationships between concepts
-- Hierarchical structures
-- Cause-and-effect relationships
-- Categories and classifications
-- Important sub-topics and related areas
-Be comprehensive but factual. Include specific details.`;
+const KG_RESEARCH_PROMPT = `You are a domain expert building a knowledge graph for learning and research.
+
+Extract structured knowledge focusing on:
+1. CORE CONCEPTS: Fundamental ideas, theories, principles (not just definitions)
+2. CAUSAL CHAINS: What causes what? What enables what? Dependencies and prerequisites
+3. HIERARCHIES: Taxonomies, part-of relationships, specializations
+4. PROCESSES: Workflows, sequences, transformations
+5. KEY ENTITIES: Important people, organizations, technologies, events
+6. CONTRASTS: Competing theories, alternatives, trade-offs
+
+For each concept, explain:
+- Why it matters (impact, applications)
+- How it relates to other concepts (mechanisms, not just associations)
+- Real-world examples or use cases
+
+Be specific and actionable. Avoid generic descriptions.`;
 
 const KG_GENERATION_PROMPT = `You are a knowledge graph architect. Given a topic and research notes, create a structured knowledge graph.
 

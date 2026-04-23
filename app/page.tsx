@@ -63,7 +63,7 @@ export default function LandingPage() {
               <Sparkles className="size-5 text-white" />
             </div>
             <div className="leading-tight">
-              <div className="text-sm font-bold tracking-tight">PresentAI</div>
+              <div className="text-sm font-bold tracking-tight">AgentSlide</div>
               <div className="text-[11px] font-semibold text-zinc-400">
                 Light-mode studio
               </div>
@@ -104,7 +104,7 @@ export default function LandingPage() {
               Build decks that look engineered — not generated.
             </h1>
             <p className="mt-4 text-lg text-zinc-600 leading-relaxed">
-              PresentAI turns a prompt into a validated deck spec, then renders
+              AgentSlide turns a prompt into a validated deck spec, then renders
               consistent PPTX and web slides with charts that match your theme.
             </p>
 
@@ -172,7 +172,7 @@ export default function LandingPage() {
       <footer className="relative z-10 border-t border-zinc-100">
         <div className="mx-auto max-w-6xl px-6 py-10 flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
           <div className="text-sm text-zinc-500">
-            <span className="font-semibold text-zinc-700">PresentAI</span>{" "}
+            <span className="font-semibold text-zinc-700">AgentSlide</span>{" "}
             · Light mode by default
           </div>
           <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-300">

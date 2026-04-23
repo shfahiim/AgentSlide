@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { AgentStepName, DeckSpec, OutputMode, PipelineProgress } from "@/lib/types";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { SlideRenderer } from "@/components/presentation/slide-renderer";
+import { SlideScaler } from "@/components/presentation/slide-scaler";
 import { GenerationState } from "@/lib/hooks/use-generation";
 import { WebpageGenerationState } from "@/lib/hooks/use-webpage-generation";
 import { KnowledgeGraphGenerationState } from "@/lib/hooks/use-knowledge-graph-generation";
@@ -458,6 +459,10 @@ export function PreviewPanel({
                     </button>
                 </div>
             )}
+        </div>
+    );
+}
+        )}
         </div>
     );
 }
