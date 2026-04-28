@@ -1,5 +1,9 @@
 # AgentSlide
 
+<p align="left">
+  <img src="docs/screenshots/agentslide-logo.svg" alt="AgentSlide logo" width="320" />
+</p>
+
 AgentSlide is a Next.js app that generates presentation outputs from a text prompt using a streamed, multi-step AI pipeline.
 
 It currently supports three creation modes:

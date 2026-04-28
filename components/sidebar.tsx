@@ -1,5 +1,4 @@
 import {
-    Settings,
     Inbox,
     PanelLeftClose,
     PanelLeftOpen,
@@ -8,7 +7,6 @@ import {
     Network,
     Trash2,
     Search,
-    User,
     Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -94,11 +92,11 @@ export function Sidebar({
             {/* Logo */}
             <div
                 className={cn(
-                    "h-16 border-b border-zinc-100/50 flex items-center text-emerald-600",
-                    isCollapsed ? "justify-center px-2" : "px-4"
+                    "h-24 border-b border-zinc-100/50 flex items-center justify-center text-black",
+                    isCollapsed ? "px-2" : "px-4"
                 )}
             >
-                {isCollapsed ? <LogoIcon className="h-6 w-6" /> : <Logo className="h-8" />}
+                {isCollapsed ? <LogoIcon className="h-12 w-12" /> : <Logo className="h-16" />}
             </div>
 
             {/* Top Controls */}
@@ -262,34 +260,6 @@ export function Sidebar({
                         )}
                     </>
                 )}
-            </div>
-
-            {/* Footer */}
-            <div className={cn("p-4 border-t border-zinc-100 space-y-2", isCollapsed && "p-2")}>
-                <div className={cn(
-                    "flex items-center gap-3 px-2 py-2 rounded-xl transition-colors",
-                    isCollapsed ? "justify-center" : "bg-zinc-50/50 border border-zinc-200/50"
-                )}>
-                    <div className="size-8 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center shrink-0">
-                        <User className="size-4 text-emerald-600" />
-                    </div>
-                    {!isCollapsed && (
-                        <div className="min-w-0 flex-1">
-                            <p className="text-xs font-bold text-zinc-900 truncate">Guest User</p>
-                            <p className="text-[10px] text-zinc-500 truncate">Free Plan</p>
-                        </div>
-                    )}
-                </div>
-                
-                <button
-                    className={cn(
-                        "flex items-center gap-2 text-sm text-zinc-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors w-full",
-                        isCollapsed ? "justify-center size-10 p-0 mx-auto" : "px-2 py-2"
-                    )}
-                >
-                    <Settings className="size-4 shrink-0" />
-                    {!isCollapsed && <span className="text-xs font-medium">Settings</span>}
-                </button>
             </div>
         </motion.aside>
     );

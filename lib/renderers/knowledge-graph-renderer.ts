@@ -800,8 +800,7 @@ function render() {
     label.setAttribute('class', 'node__label');
     label.setAttribute('x', 14);
     label.setAttribute('y', n.h / 2);
-    const full = '[' + n.label + ']';
-    label.textContent = truncateToPx(full, n.w - 40);
+    label.textContent = truncateToPx(n.label, n.w - 40);
     g.appendChild(label);
 
     if (n.children.length) {
