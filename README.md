@@ -1,5 +1,3 @@
-# AgentSlide
-
 <p align="left">
   <img src="docs/screenshots/agentslide-logo.svg" alt="AgentSlide logo" width="320" />
 </p>
