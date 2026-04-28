@@ -1,178 +1,213 @@
-# 🎯 SlideMaker — AI Presentation Agent
+# AgentSlide
 
-An AI agent that takes a text prompt and produces complete presentations — either as downloadable `.pptx` files, interactive web decks, or both.
+AgentSlide is a Next.js app that generates presentation outputs from a text prompt using a streamed, multi-step AI pipeline.
+
+It currently supports three creation modes:
+- Slides: structured deck output with PPTX export and web presentation view
+- Webpage: single-page HTML output
+- Knowledge Graph: interactive graph HTML output
 
 ## Features
 
-- **Multi-format output**: Generate PowerPoint files and/or web presentations from a single prompt
-- **AI-powered content**: Uses Google Gemini to plan structure, research facts, and write slide content
-- **Smart layouts**: Automatically selects appropriate layouts (title, bullets, charts, two-column, etc.)
-- **Interactive charts**: Vega-Lite charts that are static in PPTX, interactive in web
-- **Theme system**: 4 built-in themes (Modern Dark, Minimal Light, Corporate, Vibrant)
-- **Quality assurance**: Automatic compression of overcrowded slides
-- **Real-time progress**: SSE streaming shows generation progress step-by-step
+- Chat-based studio at `/studio`
+- Real-time SSE pipeline progress
+- Three generation modes with mode-specific pipeline tracking
+- PPTX export for slide mode
+- History browser with reload/delete
+- Local file-based output persistence (`output/<uuid>`)
 
 ## Quick Start
 
-### 1. Install Dependencies
+### 1. Install
 
 ```bash
 npm install
-```
-
-### 2. Configure Environment
-
-Copy `.env.example` to `.env.local` and add your Google AI API key:
-
-```bash
 cp .env.example .env.local
 ```
 
-Edit `.env.local` and set your API key:
+### 2. Configure
+
+Set at least:
 
 ```env
 GOOGLE_GENAI_API_KEY=your_api_key_here
 ```
 
-Get your API key from: https://aistudio.google.com/apikey
+Get API key: https://aistudio.google.com/apikey
 
-### 3. Run Development Server
+### 3. Run
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and start creating presentations!
+Open:
+- Landing page: `http://localhost:3000/`
+- Studio: `http://localhost:3000/studio`
+
+## Mode Pipelines
+
+### Slides mode
+
+Pipeline steps:
+1. `intake`
+2. `planning`
+3. `research`
+4. `generation`
+5. `assets`
+6. `qa`
+7. `rendering`
+
+Notes:
+- `assets` includes deterministic chart/table processing and image URL resolution.
+- PPTX rendering runs when output is not web-only.
+
+### Webpage mode
+
+Pipeline steps:
+1. `research`
+2. `generation`
+
+Output: `index.html` served by `/api/output-html?id=<pageId>`.
+
+### Knowledge Graph mode
+
+Pipeline steps:
+1. `research`
+2. `generation`
+3. `rendering`
+
+Output: `index.html` + `graph-data.json`.
+
+## API Routes
+
+### Generation
+
+- `POST /api/generate` (slides, SSE)
+  - Body: `{ prompt, theme?, approvedPlan? }`
+- `POST /api/generate-webpage` (webpage, SSE)
+  - Body: `{ prompt }`
+- `POST /api/generate-knowledge-graph` (knowledge graph, SSE)
+  - Body: `{ prompt, depth? }`
+
+SSE events used by frontend:
+- `progress`
+- `complete`
+- `error`
+- `log` (slides route tracing)
+
+### Retrieval and exports
+
+- `GET /api/deck/[id]` - validated `deck.json`
+- `GET /api/export?id=<deckId>` - PPTX download
+- `GET /api/output-html?id=<id>` - HTML output view
+- `GET /api/assets/[deckId]/[file]` - image asset serving
+
+### History
+
+- `GET /api/history` - list saved outputs
+- `GET /api/history/[id]` - load one saved output
+- `DELETE /api/history/[id]` - delete saved output directory
+
+## Output Storage
+
+Each run is saved under `output/<uuid>/`.
+
+Typical slide run:
+- `deck.json`
+- `meta.json`
+- `trace.jsonl`
+- `presentation.pptx` (when generated)
+- `assets/*` (image files/refs as applicable)
+
+Typical webpage run:
+- `index.html`
+- `meta.json`
+
+Typical knowledge graph run:
+- `index.html`
+- `graph-data.json`
+- `meta.json`
 
 ## Environment Variables
 
-All configuration is done via environment variables in `.env.local`:
+See `.env.example` for full list. Most commonly used:
 
 ### Required
 
-| Variable | Description | Example |
-|---|---|---|
-| `GOOGLE_GENAI_API_KEY` | Your Google AI API key | `AIzaSy...` |
+- `GOOGLE_GENAI_API_KEY`
 
-### AI Model Configuration
+### AI config
 
-| Variable | Default | Description |
-|---|---|---|
-| `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model to use |
-| `GEMINI_TEMPERATURE_INTAKE` | `0.3` | Temperature for prompt parsing (0.0-1.0) |
-| `GEMINI_TEMPERATURE_PLANNING` | `0.7` | Temperature for deck planning |
-| `GEMINI_TEMPERATURE_CONTENT` | `0.7` | Temperature for slide content generation |
-| `GEMINI_TEMPERATURE_RESEARCH` | `0.3` | Temperature for research notes |
-| `GEMINI_TEMPERATURE_COMPRESSION` | `0.3` | Temperature for content compression |
-| `GEMINI_MAX_RETRIES` | `3` | Max retry attempts on validation failures |
+- `GEMINI_MODEL`
+- `GEMINI_TEMPERATURE_INTAKE`
+- `GEMINI_TEMPERATURE_PLANNING`
+- `GEMINI_TEMPERATURE_CONTENT`
+- `GEMINI_TEMPERATURE_RESEARCH`
+- `GEMINI_TEMPERATURE_COMPRESSION`
+- `GEMINI_MAX_RETRIES`
 
-### Pipeline Configuration
+### Image pipeline
 
-| Variable | Default | Description |
-|---|---|---|
-| `SLIDE_GENERATION_BATCH_SIZE` | `3` | Number of slides to generate in parallel (1-5) |
+- `SLIDEMAKER_IMAGE_PROVIDER` (current effective provider: unsplash)
+- `UNSPLASH_ACCESS_KEY` (optional; seeded picsum fallback when missing)
+- `SLIDEMAKER_IMAGE_STRICT`
 
-### Development
+### Generation and debug
 
-| Variable | Default | Description |
-|---|---|---|
-| `NEXT_PUBLIC_DEBUG_MODE` | `false` | Enable debug features (raw IR viewer, etc.) |
-
-## Usage
-
-### Basic Example
-
-1. Navigate to `/create`
-2. Enter a prompt like: `"Create a 10-slide presentation about renewable energy in Bangladesh for university students"`
-3. Click **Generate**
-4. Watch real-time progress as the AI:
-   - Parses your requirements
-   - Plans the slide structure
-   - Researches key facts
-   - Generates slide content
-   - Processes charts and visuals
-   - Runs quality checks
-   - Renders PPTX and/or web output
-5. Download the PPTX or view the interactive web presentation
-
-### Advanced Prompts
-
-You can specify:
-- **Slide count**: `"Create a 15-slide deck..."`
-- **Audience**: `"...for high school students"` / `"...for investors"`
-- **Style**: `"...in a minimal style"` / `"...corporate style"`
-- **Language**: `"...in Bengali"` (supports `en` and `bn`)
-
-## Architecture
-
-See [`docs/architecture.md`](./docs/architecture.md) for the full system design.
-
-**Key concepts:**
-
-- **Intermediate Representation (IR)**: The agent produces a structured `DeckSpec` JSON that separates content from presentation
-- **Multi-step pipeline**: Intake → Planning → Research → Generation → Assets → QA → Rendering
-- **Pluggable renderers**: Same IR feeds both PPTX and web renderers
-- **Structured outputs**: Every AI call uses Zod schemas + Gemini Structured Outputs for reliability
-
-## Project Structure
-
-```
-slidemaker/
-├── app/                    # Next.js App Router
-│   ├── api/               # API routes (SSE generation, PPTX download)
-│   ├── create/            # Creation wizard page
-│   └── presentation/      # Web viewer
-├── lib/
-│   ├── agents/            # AI pipeline steps
-│   │   ├── orchestrator.ts
-│   │   ├── intake.ts
-│   │   ├── planner.ts
-│   │   ├── slide-generator.ts
-│   │   └── ...
-│   ├── renderers/         # Output renderers
-│   │   ├── pptx-renderer.ts
-│   │   └── chart-renderer.ts
-│   ├── schemas.ts         # Zod schemas (IR definitions)
-│   ├── types.ts           # TypeScript types
-│   ├── gemini.ts          # Gemini client wrapper
-│   └── themes.ts          # Theme definitions
-├── components/
-│   └── presentation/      # Web slide components
-└── docs/                  # Architecture & implementation guides
-```
+- `SLIDE_GENERATION_BATCH_SIZE`
+- `NEXT_PUBLIC_DEBUG_MODE`
 
 ## Development
 
-### Type Checking
+### Commands
 
 ```bash
+npm run dev
+npm run build
+npm run start
 npm run typecheck
 ```
 
-### Build
+### Current structure
 
-```bash
-npm run build
+```text
+app/
+  api/
+    assets/[deckId]/[file]/route.ts
+    deck/[id]/route.ts
+    export/route.ts
+    generate/route.ts
+    generate-webpage/route.ts
+    generate-knowledge-graph/route.ts
+    history/route.ts
+    history/[id]/route.ts
+    output-html/route.ts
+  presentation/[id]/page.tsx
+  studio/page.tsx
+lib/
+  agents/
+  renderers/
+  hooks/
+  schemas.ts
+  types.ts
+components/
+  chat-interface.tsx
+  preview-panel.tsx
+  sidebar.tsx
+output/
 ```
 
-### Debug Mode
+## Tech Stack
 
-Add `?debug=true` to the presentation URL to see raw slide JSON:
-
-```
-http://localhost:3000/presentation/[deck-id]?debug=true
-```
+- Next.js 15 (App Router)
+- React 19 + TypeScript
+- Google Gemini via `@google/genai`
+- Zod validation
+- PptxGenJS
+- Vega / Vega-Lite
+- Framer Motion
 
 ## License
 
 MIT
-
-## Credits
-
-Built with:
-- [Next.js 15](https://nextjs.org/)
-- [Google Gemini](https://ai.google.dev/)
-- [Vega-Lite](https://vega.github.io/vega-lite/)
-- [PptxGenJS](https://gitbrent.github.io/PptxGenJS/)
-- [Framer Motion](https://www.framer.com/motion/)
-- [Zod](https://zod.dev/)

@@ -24,23 +24,52 @@ Rules:
   - Use "comparison_table" for side-by-side comparisons
   - Use "big_number" for impactful statistics
   - Use "quote" for notable quotes
+  - Use "photo_grid" for visual storytelling with 1-3 topical photos
+  - Use "infographic" for concept-heavy visuals best represented with imagery
+  - Use "map" when geography/location context is central
   - Use "none" if the slide is text/concept focused
-  - DO NOT use "photo_grid", "infographic", or "map" (images not supported)
 - Choose layoutHint that best pairs with the visualIntent:
   - title_slide → title slides only
   - bullets → text-heavy content, no visual
   - chart_with_text → any chart/graph + supporting text
   - two_column → comparisons or pros/cons
-  - full_visual → when the visual IS the content (charts only)
+  - full_visual → when the visual IS the content (image-heavy or chart-heavy)
   - big_number → for statistic-focused slides
+  - section_divider → chapter breaks / transitions
+  - quote → notable quote or testimonial
+  - timeline → chronological milestones or phased history
+  - comparison → side-by-side choices, tradeoffs, alternatives
+  - agenda → opening overview / section list
+  - closing_cta → wrap-up, recommendation, next steps, Q&A
+  - image_with_caption → one image plus supporting text
+  - stat_grid → 2-4 KPI cards or grouped metrics
+  - process_flow → sequential process / pipeline / framework
+  - pros_cons → balanced decision framing
+  - team_profiles → 2-4 people/role cards
+  - case_study → problem / solution / result narrative
+  - swot_matrix → 4-quadrant SWOT framing
+  - faq → short Q/A pairs
+  - roadmap → future phases, milestones, next horizons
+  - before_after → transformation comparison
+  - sources → references / citations / source list
+  - risk_register → risks, severity, mitigation
 - If visualIntent is bar_chart/line_chart/pie_chart/timeline, layoutHint should be "chart_with_text" unless there's a clear reason for "full_visual"
+- Prefer these pairings when they fit:
+  - quote visualIntent → quote
+  - timeline visualIntent → timeline
+  - comparison_table visualIntent → comparison, pros_cons, before_after, risk_register, or two_column
+  - photo_grid/map/infographic visualIntent → image_with_caption or full_visual
+  - big_number visualIntent → big_number or stat_grid
 - Avoid monotony:
   - Don't use "bullets" for more than ~50% of slides
   - Avoid repeating the same layoutHint more than 2 slides in a row
-  - Include at least 2-3 non-bullets slides (chart_with_text, two_column, full_visual, big_number) when slideCount >= 8
+  - Include at least 3-4 non-bullets slides when slideCount >= 8
 - Ensure visualIntent + layoutHint are consistent:
-  - full_visual should pair with chart visuals only
+  - full_visual should pair with image or chart visuals
   - big_number should pair with visualIntent "big_number"
   - two_column should pair with "comparison_table" when a table makes sense
+  - image_with_caption should pair with image-based visual intents
+  - sources should be used when attribution matters
+  - risk_register / roadmap / timeline / process_flow should be used for structured sequences instead of generic bullets
 - Slide count: use the user's preference if given, otherwise 8-12 for most topics
 - Make the plan feel like a coherent narrative arc, not a random list`;

@@ -8,10 +8,9 @@ import {
     Circle,
     ChevronDown,
     ChevronRight,
-    Presentation,
+    SquareStack,
     Globe,
     Network,
-    Youtube,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
@@ -42,15 +41,56 @@ interface ChatInterfaceProps {
     };
 }
 
-const STEP_LABELS: Record<AgentStepName, string> = {
-    intake: "Understanding your prompt",
-    planning: "Planning slide structure",
-    research: "Researching key facts",
-    generation: "Generating content",
-    assets: "Processing charts & visuals",
-    qa: "Quality check",
-    rendering: "Building output files",
+const STEP_LABELS: Record<OutputMode, Partial<Record<AgentStepName, string>>> = {
+    slides: {
+        intake: "Understanding your prompt",
+        planning: "Planning slide structure",
+        research: "Researching key facts",
+        generation: "Generating content",
+        assets: "Processing charts & visuals",
+        qa: "Quality check",
+        rendering: "Building output files",
+    },
+    webpage: {
+        research: "Researching data and statistics",
+        generation: "Designing and coding webpage",
+    },
+    "knowledge-graph": {
+        research: "Researching topic",
+        generation: "Building knowledge graph structure",
+        rendering: "Rendering interactive visualization",
+    },
 };
+
+const MODE_STEP_ORDER: Record<OutputMode, AgentStepName[]> = {
+    slides: ["intake", "planning", "research", "generation", "assets", "qa", "rendering"],
+    webpage: ["research", "generation"],
+    "knowledge-graph": ["research", "generation", "rendering"],
+};
+
+function formatErrorMessage(error: string | undefined): string {
+    if (!error) return "An unknown error occurred";
+    
+    try {
+        const parsed = JSON.parse(error);
+        if (parsed.error?.message) {
+            const msg = parsed.error.message;
+            if (msg.includes("high demand")) {
+                return "The AI service is experiencing high demand right now. Please try again in a moment.";
+            }
+            if (msg.includes("quota") || msg.includes("limit")) {
+                return "API quota exceeded. Please check your API key limits or try again later.";
+            }
+            if (msg.includes("UNAVAILABLE")) {
+                return "The AI service is temporarily unavailable. Please try again shortly.";
+            }
+            return msg;
+        }
+    } catch {
+        // Not JSON, return as-is
+    }
+    return error;
+}
 
 function ThinkingDots() {
     return (
@@ -75,12 +115,23 @@ function ThinkingDots() {
     );
 }
 
-function ProgressTracker({ progress, elapsedTime }: { progress: PipelineProgress[]; elapsedTime: number }) {
+function ProgressTracker({ progress, elapsedTime, mode }: { progress: PipelineProgress[]; elapsedTime: number; mode: OutputMode }) {
     const [collapsed, setCollapsed] = useState(false);
 
-    const stepMap = new Map<string, PipelineProgress>();
+    const stepMap = new Map<AgentStepName, PipelineProgress>();
     progress.forEach((p) => stepMap.set(p.step, p));
-    const steps = Array.from(stepMap.values());
+    const orderedSteps = MODE_STEP_ORDER[mode].map((step) => {
+        const current = stepMap.get(step);
+        return {
+            step,
+            label: STEP_LABELS[mode][step] ?? step,
+            status: current?.status ?? "pending",
+            detail: current?.detail,
+        };
+    });
+    const completedSteps = orderedSteps.filter(
+        (step) => step.status === "done" || step.status === "skipped",
+    ).length;
 
     const formatTime = (ms: number) => {
         const seconds = Math.floor(ms / 1000);
@@ -113,7 +164,7 @@ function ProgressTracker({ progress, elapsedTime }: { progress: PipelineProgress
                         {formatTime(elapsedTime)}
                     </span>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded-full">
-                        {steps.filter((s) => s.status === "done").length}/{steps.length} steps
+                        {completedSteps}/{orderedSteps.length} steps
                     </span>
                 </span>
             </button>
@@ -126,9 +177,9 @@ function ProgressTracker({ progress, elapsedTime }: { progress: PipelineProgress
                         exit={{ height: 0, opacity: 0 }}
                         className="px-4 pb-3 space-y-2"
                     >
-                        {steps.map((step, i) => (
+                        {orderedSteps.map((step, i) => (
                             <motion.div 
-                                key={`${step.step}-${i}`} 
+                                key={`${step.step}-${i}`}
                                 initial={{ opacity: 0, x: -5 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: i * 0.05 }}
@@ -148,7 +199,7 @@ function ProgressTracker({ progress, elapsedTime }: { progress: PipelineProgress
                                         step.status === "running" ? "text-zinc-900 font-semibold" : "text-zinc-500"
                                     )}
                                 >
-                                    {STEP_LABELS[step.step as AgentStepName] ?? step.message}
+                                    {step.label}
                                 </span>
                                 {step.detail && (
                                     <span className="text-[10px] font-medium text-zinc-400 ml-auto bg-zinc-50 px-1.5 py-0.5 rounded border border-zinc-100">{step.detail}</span>
@@ -340,7 +391,7 @@ export function ChatInterface({
                 {
                     id: `error-${Date.now()}`,
                     role: "assistant",
-                    content: `Something went wrong: ${slideGeneration.error}`,
+                    content: formatErrorMessage(slideGeneration.error),
                     type: "error",
                 },
             ]);
@@ -354,7 +405,7 @@ export function ChatInterface({
                 {
                     id: `error-${Date.now()}`,
                     role: "assistant",
-                    content: `Something went wrong: ${webpageGeneration.error}`,
+                    content: formatErrorMessage(webpageGeneration.error),
                     type: "error",
                 },
             ]);
@@ -368,7 +419,7 @@ export function ChatInterface({
                 {
                     id: `error-${Date.now()}`,
                     role: "assistant",
-                    content: `Something went wrong: ${knowledgeGraphGeneration.error}`,
+                    content: formatErrorMessage(knowledgeGraphGeneration.error),
                     type: "error",
                 },
             ]);
@@ -378,17 +429,10 @@ export function ChatInterface({
     const handleSend = async () => {
         if (!input.trim() || isGenerating) return;
 
-        const modeLabel =
-            mode === "slides"
-                ? "Slides"
-                : mode === "webpage"
-                    ? "Webpage"
-                    : "Knowledge Graph";
-
         const userMsg: Message = {
             id: Date.now().toString(),
             role: "user",
-            content: `[${modeLabel}] ${input}`,
+            content: input,
         };
         setMessages((prev) => [...prev, userMsg]);
         const prompt = input;
@@ -472,7 +516,7 @@ export function ChatInterface({
 		                {isGenerating && currentGen.progress.length > 0 && (
 		                    <div className="max-w-3xl mx-auto">
 		                        <div className="space-y-2">
-		                            <ProgressTracker progress={currentGen.progress} elapsedTime={elapsedTime} />
+		                            <ProgressTracker progress={currentGen.progress} elapsedTime={elapsedTime} mode={mode} />
 		                        </div>
 		                    </div>
 		                )}
@@ -527,7 +571,7 @@ export function ChatInterface({
                                     )}
                                 >
                                     {m === "slides" ? (
-                                        <Presentation className="size-3.5" />
+                                        <SquareStack className="size-3.5" />
                                     ) : m === "webpage" ? (
                                         <Globe className="size-3.5" />
                                     ) : (

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-export type HistoryMode = "slides" | "webpage" | "knowledge-graph" | "study-yt";
+export type HistoryMode = "slides" | "webpage" | "knowledge-graph";
 
 export interface HistoryListItem {
   id: string;

@@ -3,6 +3,7 @@ import { DeckSpec, SlideSpec, ThemeSpec } from "../types";
 import { renderChartToPng, getVegaLiteSpec } from "./chart-renderer";
 import { join } from "path";
 import { traceLog } from "../trace";
+import { normalizeSlideForRender } from "./slide-safety";
 
 function unhash(color: string): string {
   return color.replace("#", "");
@@ -50,6 +51,31 @@ function addCard(
     fill: { color: unhash(opts.theme.colors.surface) },
     line: { color: unhash(opts.theme.colors.text), transparency: toTransparency(0.12), width: 1 },
   });
+}
+
+function addEyebrow(
+  slide: PptxGenJS.Slide,
+  text: string,
+  x: number,
+  y: number,
+  theme: ThemeSpec,
+) {
+  slide.addText(text, {
+    x,
+    y,
+    w: 3.2,
+    h: 0.24,
+    fontSize: 9,
+    bold: true,
+    color: unhash(theme.colors.accent),
+    fontFace: theme.fonts.heading,
+    breakLine: false,
+  });
+}
+
+function splitBullets(items: string[]) {
+  const mid = Math.ceil(items.length / 2);
+  return [items.slice(0, mid), items.slice(mid)] as const;
 }
 
 // ─── Layout-specific renderers ──────────────────────────────────────────
@@ -402,6 +428,411 @@ function renderBigNumberSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: Th
   }
 }
 
+function renderSectionDividerSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: ThemeSpec) {
+  slide.addShape("rect", {
+    x: 0,
+    y: 0,
+    w: 4.0,
+    h: 7.5,
+    fill: { color: unhash(theme.colors.accent), transparency: toTransparency(0.92) },
+    line: { color: unhash(theme.colors.accent), transparency: 100 },
+  });
+  addEyebrow(slide, "SECTION", 0.92, 1.25, theme);
+  slide.addText(spec.title, {
+    x: 0.92,
+    y: 1.7,
+    w: 8.9,
+    h: 1.8,
+    fontSize: 30,
+    bold: true,
+    color: unhash(theme.colors.heading),
+    fontFace: theme.fonts.heading,
+  });
+  if (spec.subtitle) {
+    slide.addText(spec.subtitle, {
+      x: 0.92,
+      y: 3.55,
+      w: 7.8,
+      h: 0.7,
+      fontSize: 18,
+      color: unhash(theme.colors.text),
+      fontFace: theme.fonts.body,
+    });
+  }
+  spec.bullets.slice(0, 3).forEach((bullet, index) => {
+    slide.addShape("roundRect", {
+      x: 0.92 + index * 2.15,
+      y: 4.75,
+      w: 1.95,
+      h: 0.44,
+      fill: { color: unhash(theme.colors.surface) },
+      line: { color: unhash(theme.colors.text), transparency: toTransparency(0.14), width: 1 },
+    });
+    slide.addText(bullet, {
+      x: 1.05 + index * 2.15,
+      y: 4.87,
+      w: 1.7,
+      h: 0.18,
+      fontSize: 10,
+      color: unhash(theme.colors.text),
+      fontFace: theme.fonts.body,
+      align: "center",
+    });
+  });
+}
+
+function renderQuoteSlide(slide: PptxGenJS.Slide, spec: SlideSpec, theme: ThemeSpec) {
+  addTitle(slide, spec, theme);
+  addCard(slide, { x: 0.95, y: 1.75, w: 11.45, h: 3.95, theme });
+  slide.addText(`"${spec.bullets[0] ?? spec.title}"`, {
+    x: 1.35,
+    y: 2.15,
+    w: 10.65,
+    h: 2.15,
+    fontSize: 24,
+    bold: true,
+    color: unhash(theme.colors.heading),
+    fontFace: theme.fonts.body,
+    valign: "middle",
+  });
+  if (spec.subtitle) {
+    slide.addText(spec.subtitle, {
+      x: 1.35,
+      y: 4.65,
+      w: 10.65,
+      h: 0.42,
+      fontSize: 14,
+      color: unhash(theme.colors.text),
+      fontFace: theme.fonts.body,
+      align: "right",
+    });
+  }
+}
+
+function renderSequenceFamilySlide(
+  slide: PptxGenJS.Slide,
+  spec: SlideSpec,
+  theme: ThemeSpec,
+) {
+  addTitle(slide, spec, theme);
+  const badge =
+    spec.layout === "timeline"
+      ? "TIMELINE"
+      : spec.layout === "roadmap"
+        ? "ROADMAP"
+        : "PROCESS";
+  addEyebrow(slide, badge, 0.67, 1.45, theme);
+
+  const items = spec.bullets.slice(0, 5);
+  const count = Math.max(1, items.length);
+  const totalWidth = 11.8;
+  const gap = 0.2;
+  const cardW = Math.min(2.4, (totalWidth - gap * (count - 1)) / count);
+  items.forEach((bullet, index) => {
+    const x = 0.8 + index * (cardW + gap);
+    const y = 2.2;
+    if (index < items.length - 1) {
+      slide.addShape("line", {
+        x: x + cardW,
+        y: y + 1.05,
+        w: gap,
+        h: 0,
+        line: { color: unhash(theme.colors.accent), width: 2 },
+      });
+    }
+    addCard(slide, { x, y, w: cardW, h: 2.35, theme });
+    slide.addText(String(index + 1), {
+      x: x + 0.18,
+      y: y + 0.18,
+      w: 0.38,
+      h: 0.26,
+      fontSize: 12,
+      bold: true,
+      color: unhash(theme.colors.accent),
+      fontFace: theme.fonts.heading,
+      align: "center",
+    });
+    slide.addText(bullet, {
+      x: x + 0.25,
+      y: y + 0.72,
+      w: cardW - 0.5,
+      h: 1.25,
+      fontSize: 14,
+      color: unhash(theme.colors.text),
+      fontFace: theme.fonts.body,
+      valign: "middle",
+      align: "center",
+    });
+  });
+}
+
+function renderStructuredListSlide(
+  slide: PptxGenJS.Slide,
+  spec: SlideSpec,
+  theme: ThemeSpec,
+) {
+  addTitle(slide, spec, theme);
+  const badge =
+    spec.layout === "agenda"
+      ? "AGENDA"
+      : spec.layout === "faq"
+        ? "FAQ"
+        : spec.layout === "sources"
+          ? "SOURCES"
+          : "NEXT STEPS";
+  addEyebrow(slide, badge, 0.67, 1.45, theme);
+
+  const items = spec.bullets.slice(0, 6);
+  const left = items.filter((_, index) => index % 2 === 0);
+  const right = items.filter((_, index) => index % 2 === 1);
+  [left, right].forEach((column, columnIndex) => {
+    column.forEach((bullet, rowIndex) => {
+      const x = columnIndex === 0 ? 0.8 : 6.7;
+      const y = 2.0 + rowIndex * 1.35;
+      const itemNumber = columnIndex === 0 ? rowIndex * 2 + 1 : rowIndex * 2 + 2;
+      addCard(slide, { x, y, w: 5.85, h: 1.05, theme });
+      slide.addText(`${itemNumber}`.padStart(2, "0"), {
+        x: x + 0.18,
+        y: y + 0.24,
+        w: 0.45,
+        h: 0.22,
+        fontSize: 10,
+        bold: true,
+        color: unhash(theme.colors.accent),
+        fontFace: theme.fonts.heading,
+      });
+      slide.addText(bullet, {
+        x: x + 0.8,
+        y: y + 0.22,
+        w: 4.75,
+        h: 0.5,
+        fontSize: 14,
+        color: unhash(theme.colors.text),
+        fontFace: theme.fonts.body,
+        valign: "middle",
+      });
+    });
+  });
+}
+
+function renderComparisonFamilySlide(
+  slide: PptxGenJS.Slide,
+  spec: SlideSpec,
+  theme: ThemeSpec,
+) {
+  addTitle(slide, spec, theme);
+  const table = spec.visuals.find((visual) => visual.type === "table");
+  if (table && table.type === "table" && table.headers.length > 0) {
+    const headerRow = table.headers.map((header) => ({
+      text: header,
+      options: {
+        bold: true,
+        color: "FFFFFF",
+        fill: { color: unhash(theme.colors.accent) },
+        fontFace: theme.fonts.body,
+        fontSize: 11,
+      },
+    }));
+    const bodyRows = table.rows.map((row) =>
+      row.map((cell) => ({
+        text: cell,
+        options: {
+          color: unhash(theme.colors.text),
+          fill: { color: unhash(theme.colors.surface) },
+          fontFace: theme.fonts.body,
+          fontSize: 11,
+        },
+      })),
+    );
+    slide.addTable([headerRow, ...bodyRows], {
+      x: 0.67,
+      y: 1.7,
+      w: 12.0,
+      h: 4.9,
+      border: { pt: 1, color: "D7DEE5" },
+      fontFace: theme.fonts.body,
+      margin: 5,
+    });
+    return;
+  }
+
+  if (spec.layout === "case_study") {
+    const labels = ["PROBLEM", "SOLUTION", "OUTCOME"];
+    spec.bullets.slice(0, 3).forEach((bullet, index) => {
+      const x = 0.8 + index * 4.18;
+      addCard(slide, { x, y: 2.0, w: 3.75, h: 3.3, theme });
+      slide.addText(labels[index] ?? `BLOCK ${index + 1}`, {
+        x: x + 0.22,
+        y: 2.22,
+        w: 1.1,
+        h: 0.18,
+        fontSize: 9,
+        bold: true,
+        color: unhash(theme.colors.accent),
+        fontFace: theme.fonts.heading,
+      });
+      slide.addText(bullet, {
+        x: x + 0.22,
+        y: 2.7,
+        w: 3.3,
+        h: 1.95,
+        fontSize: 16,
+        color: unhash(theme.colors.text),
+        fontFace: theme.fonts.body,
+        valign: "middle",
+        align: "center",
+      });
+    });
+    return;
+  }
+
+  const [left, right] = splitBullets(spec.bullets.slice(0, 4));
+  const labels =
+    spec.layout === "pros_cons"
+      ? ["PROS", "CONS"]
+      : spec.layout === "before_after"
+        ? ["BEFORE", "AFTER"]
+        : ["OPTION A", "OPTION B"];
+  [left, right].forEach((column, columnIndex) => {
+    const x = columnIndex === 0 ? 0.8 : 6.75;
+    addCard(slide, { x, y: 1.95, w: 5.8, h: 4.8, theme });
+    slide.addText(labels[columnIndex] ?? `COLUMN ${columnIndex + 1}`, {
+      x: x + 0.25,
+      y: 2.18,
+      w: 1.4,
+      h: 0.18,
+      fontSize: 9,
+      bold: true,
+      color: unhash(theme.colors.accent),
+      fontFace: theme.fonts.heading,
+    });
+    column.forEach((bullet, rowIndex) => {
+      slide.addText(`• ${bullet}`, {
+        x: x + 0.32,
+        y: 2.72 + rowIndex * 0.82,
+        w: 5.0,
+        h: 0.45,
+        fontSize: 14,
+        color: unhash(theme.colors.text),
+        fontFace: theme.fonts.body,
+      });
+    });
+  });
+}
+
+function renderGridFamilySlide(
+  slide: PptxGenJS.Slide,
+  spec: SlideSpec,
+  theme: ThemeSpec,
+) {
+  addTitle(slide, spec, theme);
+  const bigNumber = spec.visuals.find((visual) => visual.type === "big_number");
+  const items =
+    spec.layout === "stat_grid" && bigNumber && bigNumber.type === "big_number"
+      ? [`${bigNumber.value} - ${bigNumber.label}`, ...spec.bullets]
+      : spec.bullets;
+  const labels =
+    spec.layout === "swot_matrix"
+      ? ["STRENGTHS", "WEAKNESSES", "OPPORTUNITIES", "THREATS"]
+      : spec.layout === "team_profiles"
+        ? ["PROFILE 1", "PROFILE 2", "PROFILE 3", "PROFILE 4"]
+        : ["METRIC 1", "METRIC 2", "METRIC 3", "METRIC 4"];
+
+  items.slice(0, 4).forEach((bullet, index) => {
+    const x = index % 2 === 0 ? 0.8 : 6.75;
+    const y = index < 2 ? 1.95 : 4.45;
+    addCard(slide, { x, y, w: 5.8, h: 2.1, theme });
+    slide.addText(labels[index] ?? `CARD ${index + 1}`, {
+      x: x + 0.25,
+      y: y + 0.24,
+      w: 1.8,
+      h: 0.18,
+      fontSize: 9,
+      bold: true,
+      color: unhash(theme.colors.accent),
+      fontFace: theme.fonts.heading,
+    });
+    slide.addText(bullet, {
+      x: x + 0.25,
+      y: y + 0.75,
+      w: 5.15,
+      h: 0.85,
+      fontSize: 16,
+      color: unhash(theme.colors.text),
+      fontFace: theme.fonts.body,
+      valign: "middle",
+      align: "center",
+    });
+  });
+}
+
+async function renderImageWithCaptionSlide(
+  slide: PptxGenJS.Slide,
+  spec: SlideSpec,
+  theme: ThemeSpec,
+  opts?: { assetDir?: string },
+) {
+  const image = spec.visuals.find((visual) => visual.type === "image");
+  if (image && image.type === "image" && image.url) {
+    try {
+      if (image.fileName && opts?.assetDir) {
+        slide.addImage({ path: join(opts.assetDir, image.fileName), x: 0.8, y: 1.35, w: 6.15, h: 5.35 });
+      } else if (/^data:image\//i.test(image.url)) {
+        slide.addImage({ data: image.url, x: 0.8, y: 1.35, w: 6.15, h: 5.35 });
+      } else if (/^https?:\/\//i.test(image.url)) {
+        const res = await fetch(image.url);
+        if (res.ok) {
+          const buf = Buffer.from(await res.arrayBuffer());
+          const ct = res.headers.get("content-type") ?? "image/png";
+          slide.addImage({
+            data: `data:${ct};base64,${buf.toString("base64")}`,
+            x: 0.8,
+            y: 1.35,
+            w: 6.15,
+            h: 5.35,
+          });
+        }
+      }
+    } catch {
+      // fall through to text-only framing
+    }
+  }
+
+  addCard(slide, { x: 7.25, y: 1.35, w: 5.25, h: 5.35, theme });
+  slide.addText(spec.title, {
+    x: 7.6,
+    y: 1.7,
+    w: 4.55,
+    h: 1.0,
+    fontSize: 24,
+    bold: true,
+    color: unhash(theme.colors.heading),
+    fontFace: theme.fonts.heading,
+  });
+  if (spec.subtitle) {
+    slide.addText(spec.subtitle, {
+      x: 7.6,
+      y: 2.65,
+      w: 4.35,
+      h: 0.55,
+      fontSize: 14,
+      color: unhash(theme.colors.text),
+      fontFace: theme.fonts.body,
+    });
+  }
+  spec.bullets.slice(0, 3).forEach((bullet, index) => {
+    slide.addText(`• ${bullet}`, {
+      x: 7.6,
+      y: 3.45 + index * 0.78,
+      w: 4.15,
+      h: 0.45,
+      fontSize: 14,
+      color: unhash(theme.colors.text),
+      fontFace: theme.fonts.body,
+    });
+  });
+}
+
 // ─── Main render function ───────────────────────────────────────────────
 
 async function renderSlide(
@@ -410,33 +841,67 @@ async function renderSlide(
   theme: ThemeSpec,
   opts?: { assetDir?: string },
 ): Promise<void> {
-  switch (spec.layout) {
+  const safeSpec = normalizeSlideForRender(spec);
+
+  switch (safeSpec.layout) {
     case "title_slide":
-      renderTitleSlide(slide, spec, theme);
+      renderTitleSlide(slide, safeSpec, theme);
       break;
     case "bullets":
-      renderBulletSlide(slide, spec, theme);
+      renderBulletSlide(slide, safeSpec, theme);
       break;
     case "chart_with_text":
-      await renderChartSlide(slide, spec, theme);
+      await renderChartSlide(slide, safeSpec, theme);
       break;
     case "two_column":
-      renderTwoColumnSlide(slide, spec, theme);
+      renderTwoColumnSlide(slide, safeSpec, theme);
       break;
     case "full_visual":
-      await renderFullVisualSlide(slide, spec, theme, opts);
+      await renderFullVisualSlide(slide, safeSpec, theme, opts);
       break;
     case "big_number":
-      renderBigNumberSlide(slide, spec, theme);
+      renderBigNumberSlide(slide, safeSpec, theme);
+      break;
+    case "section_divider":
+      renderSectionDividerSlide(slide, safeSpec, theme);
+      break;
+    case "quote":
+      renderQuoteSlide(slide, safeSpec, theme);
+      break;
+    case "timeline":
+    case "roadmap":
+    case "process_flow":
+      renderSequenceFamilySlide(slide, safeSpec, theme);
+      break;
+    case "agenda":
+    case "faq":
+    case "sources":
+    case "closing_cta":
+      renderStructuredListSlide(slide, safeSpec, theme);
+      break;
+    case "comparison":
+    case "pros_cons":
+    case "before_after":
+    case "case_study":
+    case "risk_register":
+      renderComparisonFamilySlide(slide, safeSpec, theme);
+      break;
+    case "stat_grid":
+    case "team_profiles":
+    case "swot_matrix":
+      renderGridFamilySlide(slide, safeSpec, theme);
+      break;
+    case "image_with_caption":
+      await renderImageWithCaptionSlide(slide, safeSpec, theme, opts);
       break;
     default:
-      renderBulletSlide(slide, spec, theme);
+      renderBulletSlide(slide, safeSpec, theme);
       break;
   }
 
   // Add speaker notes if present
-  if (spec.speakerNotes) {
-    slide.addNotes(spec.speakerNotes);
+  if (safeSpec.speakerNotes) {
+    slide.addNotes(safeSpec.speakerNotes);
   }
 }
 
@@ -449,7 +914,7 @@ export async function renderToPptx(
   const pptx = new PptxGenJS();
 
   // Global settings
-  pptx.author = "SlideMaker AI";
+  pptx.author = "AgentSlide AI";
   pptx.title = deckSpec.plan.title;
   pptx.subject = deckSpec.projectSpec.topic;
   pptx.layout = "LAYOUT_WIDE"; // 16:9

@@ -1,6 +1,7 @@
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { NextResponse } from "next/server";
+import { DeckSpecSchema } from "@/lib/schemas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +22,21 @@ export async function GET(
 
   try {
     const data = await readFile(deckPath, "utf-8");
-    return NextResponse.json(JSON.parse(data));
+    let parsedJson: unknown;
+    try {
+      parsedJson = JSON.parse(data) as unknown;
+    } catch {
+      return NextResponse.json({ error: "Deck JSON is invalid" }, { status: 422 });
+    }
+
+    const parsedDeck = DeckSpecSchema.safeParse(parsedJson);
+    if (!parsedDeck.success) {
+      return NextResponse.json(
+        { error: "Invalid deck payload", detail: parsedDeck.error.issues[0]?.message },
+        { status: 422 },
+      );
+    }
+    return NextResponse.json(parsedDeck.data);
   } catch {
     return NextResponse.json({ error: "Deck not found" }, { status: 404 });
   }

@@ -5,9 +5,11 @@ import { useSearchParams } from "next/navigation";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { PresentationControls } from "@/components/presentation/presentation-controls";
 import { SlideRenderer } from "@/components/presentation/slide-renderer";
+import { SlideScaler } from "@/components/presentation/slide-scaler";
 import { DeckSpec } from "@/lib/types";
 import { getTheme, themeToCssVars } from "@/lib/themes";
 import { use } from "react";
+import { fetchDeckSpec } from "@/lib/client/deck";
 
 export default function PresentationPage({
   params,
@@ -16,15 +18,39 @@ export default function PresentationPage({
 }) {
   const { id } = use(params);
   const [deck, setDeck] = useState<DeckSpec | null>(null);
+  const [loadState, setLoadState] = useState<
+    "loading" | "ready" | "not_found" | "invalid" | "error"
+  >("loading");
+  const [loadMessage, setLoadMessage] = useState<string | null>(null);
   const [index, setIndex] = useState(0);
   const searchParams = useSearchParams();
   const debug = searchParams.get("debug") === "true";
 
   useEffect(() => {
-    fetch(`/api/deck/${id}`)
-      .then((res) => res.json())
-      .then((json) => setDeck(json))
-      .catch(() => setDeck(null));
+    setLoadState("loading");
+    setLoadMessage(null);
+    setDeck(null);
+    setIndex(0);
+
+    fetchDeckSpec(id).then((result) => {
+      if (result.status === "ok") {
+        setDeck(result.deck);
+        setLoadState("ready");
+        return;
+      }
+      if (result.status === "not_found") {
+        setLoadState("not_found");
+        setLoadMessage("Deck not found");
+        return;
+      }
+      if (result.status === "invalid") {
+        setLoadState("invalid");
+        setLoadMessage(result.error);
+        return;
+      }
+      setLoadState("error");
+      setLoadMessage(result.error);
+    });
   }, [id]);
 
   useEffect(() => {
@@ -43,7 +69,24 @@ export default function PresentationPage({
     return themeToCssVars(getTheme(deck.plan.suggestedTheme));
   }, [deck]);
 
-  if (!deck) return <main className="p-10">Loading...</main>;
+  if (loadState === "loading") return <main className="p-10">Loading deck...</main>;
+  if (loadState === "not_found") return <main className="p-10">Deck not found.</main>;
+  if (loadState === "invalid") {
+    return (
+      <main className="p-10">
+        Deck is invalid and cannot be rendered.
+        {loadMessage ? <p className="mt-2 text-sm opacity-70">{loadMessage}</p> : null}
+      </main>
+    );
+  }
+  if (loadState === "error" || !deck) {
+    return (
+      <main className="p-10">
+        Failed to load deck.
+        {loadMessage ? <p className="mt-2 text-sm opacity-70">{loadMessage}</p> : null}
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen" style={style as React.CSSProperties}>
@@ -55,7 +98,9 @@ export default function PresentationPage({
         }}
       >
         <ErrorBoundary>
-          <SlideRenderer slide={deck.slides[index]} isActive />
+          <SlideScaler>
+            <SlideRenderer slide={deck.slides[index]} isActive />
+          </SlideScaler>
         </ErrorBoundary>
       </div>
       <PresentationControls

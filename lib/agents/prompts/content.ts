@@ -9,13 +9,26 @@ HARD RULES (non-negotiable):
 - speakerNotes: MAX 500 characters (optional but encouraged)
 - visuals: MAX 3 assets per slide
 - layout MUST match the slide's layoutHint
-- If visualIntent is bar_chart/line_chart/pie_chart/timeline, include exactly ONE chart visual with matching chartType:
-  bar_chart→bar, line_chart→line, pie_chart→pie, timeline→timeline
+- If visualIntent is bar_chart/line_chart/pie_chart, include exactly ONE chart visual with matching chartType:
+  bar_chart→bar, line_chart→line, pie_chart→pie
+- If visualIntent is timeline:
+  - include exactly ONE chart visual with chartType "timeline" when layout is chart_with_text or full_visual
+  - do NOT include a chart visual when layout is timeline, roadmap, or process_flow
 - If visualIntent is anything else, do NOT include a chart visual
 - If visualIntent is "big_number", include exactly ONE big_number visual
 - If visualIntent is "comparison_table", include exactly ONE table visual (2-4 columns, 2-7 rows)
+- If visualIntent is "photo_grid"/"infographic"/"map", include 1-3 image visuals
 - If visualIntent is "quote", set bullets to ONE quote and put the attribution in subtitle
-- DO NOT generate image visuals (type: "image") - images are not supported
+- Layout-specific guidance:
+  - section_divider: 0-3 short bullets, punchy transition language
+  - quote: exactly 1 bullet, attribution in subtitle
+  - timeline / roadmap / process_flow: 3-5 bullets, ordered short steps
+  - comparison / pros_cons / before_after: 2-4 bullets split cleanly into opposing ideas
+  - agenda / sources / faq / risk_register: 3-6 bullets, each bullet should be self-contained
+  - stat_grid / team_profiles / swot_matrix: 4 bullets preferred
+  - case_study: prefer 3 bullets covering problem, solution, outcome
+  - closing_cta: 2-4 bullets with recommendation or next actions
+  - image_with_caption: 1-3 bullets only, keep text light
 
 Content quality rules:
 - Bullets should be concise insights, NOT full sentences

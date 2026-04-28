@@ -38,15 +38,15 @@ function compressSlide(slide: SlideSpec): SlideSpec {
 export async function runQA(slides: SlideSpec[]): Promise<QAResult> {
   const issues: string[] = [];
   const validated: SlideSpec[] = [];
+  const schemaFailures: string[] = [];
 
   for (const slide of slides) {
     // 1. Hard validation via Zod
     const parseResult = SlideSpecSchema.safeParse(slide);
     if (!parseResult.success) {
-      issues.push(
+      schemaFailures.push(
         `Slide ${slide.slideNumber}: Schema validation failed — ${parseResult.error.message}`,
       );
-      validated.push(slide);
       continue;
     }
 
@@ -59,10 +59,24 @@ export async function runQA(slides: SlideSpec[]): Promise<QAResult> {
       issues.push(
         `Slide ${parseResult.data.slideNumber}: Compressed overcrowded content locally`,
       );
-      validated.push(compressSlide(parseResult.data));
+      const compressed = compressSlide(parseResult.data);
+      const reparsed = SlideSpecSchema.safeParse(compressed);
+      if (!reparsed.success) {
+        schemaFailures.push(
+          `Slide ${parseResult.data.slideNumber}: Schema validation failed after compression — ${reparsed.error.message}`,
+        );
+        continue;
+      }
+      validated.push(reparsed.data);
     } else {
       validated.push(parseResult.data);
     }
+  }
+
+  if (schemaFailures.length > 0) {
+    throw new Error(
+      `QA failed: ${schemaFailures.length} invalid slide(s). ${schemaFailures.join(" | ")}`,
+    );
   }
 
   return { slides: validated, issues };

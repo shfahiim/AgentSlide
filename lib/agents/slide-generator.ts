@@ -13,8 +13,6 @@ import { CONTENT_SYSTEM_PROMPT } from "./prompts/content";
 import { previewText, traceLog } from "../trace";
 
 const TEMPERATURE = parseFloat(process.env.GEMINI_TEMPERATURE_CONTENT || "0.7");
-const MIN_IMAGES_PER_DECK = 1;
-const MAX_IMAGES_PER_DECK = 3;
 
 /** Zod schema for the batched response — an array of SlideSpecs */
 const BatchedSlidesSchema = z.object({
@@ -72,7 +70,10 @@ const BigNumberAssetStrictSchema = BigNumberAssetSchema.superRefine((asset, ctx)
   }
 });
 
-function requiredChartType(visualIntent: DeckPlan["slides"][number]["visualIntent"]): ChartAsset["chartType"] | null {
+function requiredChartType(
+  visualIntent: DeckPlan["slides"][number]["visualIntent"],
+  layoutHint: DeckPlan["slides"][number]["layoutHint"],
+): ChartAsset["chartType"] | null {
   switch (visualIntent) {
     case "bar_chart":
       return "bar";
@@ -81,7 +82,9 @@ function requiredChartType(visualIntent: DeckPlan["slides"][number]["visualInten
     case "pie_chart":
       return "pie";
     case "timeline":
-      return "timeline";
+      return layoutHint === "timeline" || layoutHint === "roadmap" || layoutHint === "process_flow"
+        ? null
+        : "timeline";
     default:
       return null;
   }
@@ -89,6 +92,24 @@ function requiredChartType(visualIntent: DeckPlan["slides"][number]["visualInten
 
 function isChartLayout(layout: SlideSpec["layout"]) {
   return layout === "chart_with_text" || layout === "full_visual";
+}
+
+function isTableLayout(layout: SlideSpec["layout"]) {
+  return (
+    layout === "two_column" ||
+    layout === "comparison" ||
+    layout === "pros_cons" ||
+    layout === "before_after" ||
+    layout === "risk_register"
+  );
+}
+
+function isImageLayout(layout: SlideSpec["layout"]) {
+  return layout === "full_visual" || layout === "image_with_caption";
+}
+
+function isBigNumberLayout(layout: SlideSpec["layout"]) {
+  return layout === "big_number" || layout === "stat_grid";
 }
 
 async function generateChartForSlide(opts: {
@@ -253,7 +274,7 @@ const SLIDES_JSON_FORMAT = `You MUST return a JSON object with a "slides" array.
       "subtitle": "<string, max 120 chars, optional>",
       "bullets": ["<string, max 100 chars each, max 6 items>"],
       "speakerNotes": "<string, max 500 chars, optional>",
-      "layout": "<one of: title_slide, bullets, two_column, chart_with_text, full_visual, big_number>",
+      "layout": "<one of: title_slide, bullets, two_column, chart_with_text, full_visual, big_number, section_divider, quote, timeline, comparison, agenda, closing_cta, image_with_caption, stat_grid, process_flow, pros_cons, team_profiles, case_study, swot_matrix, faq, roadmap, before_after, sources, risk_register>",
       "visuals": [
         // For charts:
         { "type": "chart", "chartType": "<bar|line|pie|timeline|area>", "title": "<string>",
@@ -273,15 +294,27 @@ const SLIDES_JSON_FORMAT = `You MUST return a JSON object with a "slides" array.
 Rules:
 - You MUST follow each slide plan's Layout hint exactly (set "layout" to that value).
 - You MUST follow each slide plan's VisualIntent:
-  - If VisualIntent is bar_chart/line_chart/pie_chart/timeline, include EXACTLY ONE chart visual.
-    - chartType mapping: bar_chart→bar, line_chart→line, pie_chart→pie, timeline→timeline
+  - If VisualIntent is bar_chart/line_chart/pie_chart, include EXACTLY ONE chart visual.
+    - chartType mapping: bar_chart→bar, line_chart→line, pie_chart→pie
+  - If VisualIntent is timeline:
+    - include EXACTLY ONE chart visual with chartType timeline when layout is chart_with_text or full_visual
+    - do NOT include a chart visual when layout is timeline, roadmap, or process_flow
   - If VisualIntent is none/quote/map/photo_grid/comparison_table/infographic/big_number, do NOT include a chart visual.
 - If visualIntent is "big_number", include EXACTLY ONE big_number visual.
 - If visualIntent is "comparison_table", include EXACTLY ONE table visual.
   - If visualIntent is "photo_grid"/"infographic"/"map", include 1-3 image visuals.
 - If visualIntent is "quote", set bullets to a single quote and put the speaker/attribution in subtitle.
 - Only include visuals that match each slide's visual intent.
-- If visualIntent is "none", use an empty visuals array.`;
+- If visualIntent is "none", use an empty visuals array.
+- Layout content rules:
+  - quote: exactly 1 bullet
+  - timeline / roadmap / process_flow: 3-5 bullets in logical order
+  - comparison / pros_cons / before_after: 2-4 bullets with clear contrast
+  - stat_grid / team_profiles / swot_matrix: prefer exactly 4 bullets
+  - case_study: prefer 3 bullets for problem, solution, result
+  - image_with_caption: keep to 1-3 bullets
+  - section_divider: 0-3 short bullets only
+- If a layout needs visual emphasis but no matching visualIntent exists, keep visuals empty rather than inventing unsupported assets.`;
 
 /**
  * Generates ALL slides in a single API call.
@@ -361,7 +394,7 @@ Generate exactly ${plan.slideCount} slides in the array, one for each slide plan
       },
     });
 
-    const required = requiredChartType(planSlide.visualIntent);
+    const required = requiredChartType(planSlide.visualIntent, planSlide.layoutHint);
     let visuals = slide.visuals ?? [];
 
     if (required) {
@@ -435,17 +468,37 @@ Generate exactly ${plan.slideCount} slides in the array, one for each slide plan
       }
     }
 
-    // Images are not supported - skip image generation entirely
+    if (
+      !required &&
+      (intent === "photo_grid" || intent === "infographic" || intent === "map")
+    ) {
+      const existingImages = visuals.filter(
+        (v): v is Extract<typeof v, { type: "image" }> => v.type === "image",
+      );
+
+      if (existingImages.length === 0) {
+        const image = await generateImageForSlide({
+          slideNumber: slide.slideNumber,
+          purpose: planSlide.purpose,
+          title: slide.title,
+          researchNotes,
+          hint: intent,
+        });
+        visuals = [image];
+      } else {
+        visuals = existingImages.slice(0, 3);
+      }
+    }
 
     let layout: SlideSpec["layout"] = planSlide.layoutHint;
 
     if (required && !isChartLayout(layout)) layout = "chart_with_text";
-    if (!required && intent === "big_number" && layout !== "big_number") layout = "big_number";
-    if (!required && intent === "comparison_table" && layout !== "two_column") layout = "two_column";
+    if (!required && intent === "big_number" && !isBigNumberLayout(layout)) layout = "big_number";
+    if (!required && intent === "comparison_table" && !isTableLayout(layout)) layout = "two_column";
     if (
       !required &&
       (intent === "photo_grid" || intent === "infographic" || intent === "map") &&
-      layout !== "full_visual"
+      !isImageLayout(layout)
     ) {
       layout = "full_visual";
     }
@@ -473,71 +526,6 @@ Generate exactly ${plan.slideCount} slides in the array, one for each slide plan
   }
 
   let normalized = enforced.sort((a, b) => a.slideNumber - b.slideNumber);
-
-  // Enforce deck-wide image bounds: always keep 1-3 image visuals total.
-  const imageRefs = normalized.flatMap((slide, slideIdx) =>
-    slide.visuals
-      .map((v, visualIdx) => ({ slideIdx, visualIdx, type: v.type }))
-      .filter((ref) => ref.type === "image"),
-  );
-
-  if (imageRefs.length > MAX_IMAGES_PER_DECK) {
-    const keepKeys = new Set(
-      imageRefs
-        .slice(0, MAX_IMAGES_PER_DECK)
-        .map((ref) => `${ref.slideIdx}:${ref.visualIdx}`),
-    );
-
-    normalized = normalized.map((slide, slideIdx) => {
-      const visuals = slide.visuals.filter((_, visualIdx) =>
-        keepKeys.has(`${slideIdx}:${visualIdx}`) || slide.visuals[visualIdx]?.type !== "image",
-      );
-
-      const hasVisual = visuals.length > 0;
-      const layout =
-        (slide.layout === "full_visual" || slide.layout === "big_number") && !hasVisual
-          ? "bullets"
-          : slide.layout;
-
-      return { ...slide, visuals, layout };
-    });
-
-    traceLog("slides.images.capped", {
-      level: "warn",
-      message: "Capped deck image visuals to max",
-      data: { before: imageRefs.length, after: MAX_IMAGES_PER_DECK, max: MAX_IMAGES_PER_DECK },
-    });
-  }
-
-  const finalImageCount = normalized.flatMap((s) => s.visuals).filter((v) => v.type === "image").length;
-  if (finalImageCount < MIN_IMAGES_PER_DECK) {
-    const eligiblePlan = plan.slides.find((s) => s.layoutHint !== "title_slide");
-    const targetSlide = normalized.find((s) => s.slideNumber === (eligiblePlan?.slideNumber ?? 1));
-    if (targetSlide) {
-      const img = await generateImageForSlide({
-        slideNumber: targetSlide.slideNumber,
-        purpose: eligiblePlan?.purpose ?? "supporting visual",
-        title: targetSlide.title,
-        hint: "infographic",
-        researchNotes,
-      });
-
-      normalized = normalized.map((slide) =>
-        slide.slideNumber === targetSlide.slideNumber
-          ? {
-              ...slide,
-              layout: "full_visual",
-              visuals: [img, ...slide.visuals.filter((v) => v.type !== "image")].slice(0, 3),
-            }
-          : slide,
-      );
-
-      traceLog("slides.images.injected", {
-        message: "Injected fallback image to satisfy minimum image count",
-        data: { min: MIN_IMAGES_PER_DECK, targetSlideNumber: targetSlide.slideNumber },
-      });
-    }
-  }
 
   return normalized;
 }

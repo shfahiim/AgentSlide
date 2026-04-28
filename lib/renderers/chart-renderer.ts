@@ -34,12 +34,13 @@ export async function renderChartToPng(
   width = 960,
   height = 540,
   theme?: ThemeSpec,
+  scaleFactor = 2,
 ): Promise<Buffer> {
   const themed = theme ? applyThemeToVegaLiteSpec(vegaLiteSpec, theme) : vegaLiteSpec;
   const compiled = vegaLite.compile(themed as never).spec;
   const view = new vega.View(vega.parse(compiled), { renderer: "none" });
   view.width(width).height(height);
-  const canvas = await view.toCanvas();
+  const canvas = await view.toCanvas(scaleFactor);
   // @ts-expect-error node-canvas
   return canvas.toBuffer("image/png");
 }

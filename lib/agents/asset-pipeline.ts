@@ -61,7 +61,7 @@ function chartToVegaLite(
 /**
  * Process all asset specs in all slides.
  * - Charts: convert to Vega-Lite specs
- * - Images: REMOVE (not supported)
+ * - Images: pass through as-is (resolved later by image pipeline)
  * - Tables/BigNumbers: pass through as-is
  */
 export async function runAssetPipeline(
@@ -69,13 +69,11 @@ export async function runAssetPipeline(
 ): Promise<SlideSpec[]> {
   return slides.map((slide) => ({
     ...slide,
-    visuals: slide.visuals
-      .filter((asset) => asset.type !== "image") // Remove all images
-      .map((asset) => {
-        if (asset.type === "chart") {
-          return { ...asset, vegaLiteSpec: chartToVegaLite(asset) };
-        }
-        return asset;
-      }),
+    visuals: slide.visuals.map((asset) => {
+      if (asset.type === "chart") {
+        return { ...asset, vegaLiteSpec: chartToVegaLite(asset) };
+      }
+      return asset;
+    }),
   }));
 }

@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
 import { NextRequest } from "next/server";
 import { runPipeline } from "@/lib/agents/orchestrator";
+import { runImagePipeline } from "@/lib/agents/image-pipeline";
 import { renderToPptx } from "@/lib/renderers/pptx-renderer";
 import { createTraceWriter, previewText, traceLog, withTraceContext } from "@/lib/trace";
 import { getTheme } from "@/lib/themes";
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
             data: { prompt: previewText(prompt, 600), hasApprovedPlan: Boolean(approvedPlan), theme },
           });
 
-          const deckSpec = await runPipeline({
+          let deckSpec = await runPipeline({
             userPrompt: prompt,
             approvedPlan,
             onProgress: (p) => send("progress", p),
@@ -64,6 +65,24 @@ export async function POST(req: NextRequest) {
               data: { theme },
             });
           }
+
+          send("progress", {
+            step: "assets",
+            status: "running",
+            message: "Resolving slide images...",
+            timestamp: Date.now(),
+          });
+          deckSpec = await runImagePipeline({
+            deckId,
+            outputDir,
+            deckSpec,
+          });
+          send("progress", {
+            step: "assets",
+            status: "done",
+            message: "Image assets ready",
+            timestamp: Date.now(),
+          });
 
           await writeFile(join(outputDir, "deck.json"), JSON.stringify(deckSpec, null, 2));
 

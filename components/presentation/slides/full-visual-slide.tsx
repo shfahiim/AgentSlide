@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { SlideSpec } from "@/lib/types";
 import { VegaChart } from "../charts/vega-chart";
+import { SlideImage } from "../slide-image";
 
 export function FullVisualSlide({ slide }: { slide: SlideSpec }) {
   const image = slide.visuals.find((a) => a.type === "image");
@@ -75,15 +76,12 @@ export function FullVisualSlide({ slide }: { slide: SlideSpec }) {
 
   return (
     <section className="h-full w-full relative overflow-hidden">
-      {image && image.type === "image" && image.url ? (
+      {image && image.type === "image" ? (
         <>
-          <motion.img
+          <SlideImage
             src={image.url}
             alt={image.alt}
             className="absolute inset-0 w-full h-full object-cover"
-            initial={{ scale: 1.05, opacity: 0.2 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.7, ease: "easeOut" }}
           />
           <div className="absolute inset-0 bg-black/10" />
           {overlay}
@@ -159,4 +157,3 @@ export function FullVisualSlide({ slide }: { slide: SlideSpec }) {
     </section>
   );
 }
-

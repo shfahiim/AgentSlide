@@ -83,7 +83,8 @@ export function VegaChart({ spec }: { spec: Record<string, unknown> }) {
 
       const result = await embed(container as HTMLElement, mergedSpec as never, {
         actions: false,
-        renderer: "canvas",
+        // SVG stays sharp when the parent slide is CSS-scaled for preview/presentation.
+        renderer: "svg",
         tooltip: true,
       });
 

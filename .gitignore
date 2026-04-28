@@ -35,4 +35,7 @@ ENV/
 # Temporary/Generated scripts
 *-player-script.js
 
+# docs/notes: ignore markdown files except project README
+*.md
+!README.md
 

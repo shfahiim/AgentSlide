@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-type HistoryMode = "slides" | "webpage" | "knowledge-graph" | "study-yt";
+type HistoryMode = "slides" | "webpage" | "knowledge-graph";
 
 interface HistoryListItem {
   id: string;
@@ -18,6 +18,10 @@ interface HistoryListItem {
   createdAt: number;
   subtitle?: string;
   hasPptx?: boolean;
+}
+
+function isHistoryMode(value: unknown): value is HistoryMode {
+  return value === "slides" || value === "webpage" || value === "knowledge-graph";
 }
 
 async function fileExists(path: string) {
@@ -83,7 +87,7 @@ export async function GET() {
           }
         | null;
 
-      if (meta?.mode && meta?.title) {
+      if (meta?.mode && meta?.title && isHistoryMode(meta.mode)) {
         const subtitle =
           meta.mode === "slides"
             ? typeof meta.slideCount === "number"
@@ -93,10 +97,6 @@ export async function GET() {
               ? typeof meta.nodeCount === "number" && typeof meta.edgeCount === "number"
                 ? `${meta.nodeCount} nodes · ${meta.edgeCount} edges${typeof meta.depth === "number" ? ` · depth ${meta.depth}` : ""}`
                 : undefined
-              : meta.mode === "study-yt"
-                ? meta.videoId
-                  ? `YouTube · ${meta.videoId}`
-                  : "YouTube"
               : undefined;
 
         items.push({

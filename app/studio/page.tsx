@@ -11,9 +11,27 @@ import { DeckSpec, OutputMode } from "@/lib/types";
 import { getTheme, themeToCssVars } from "@/lib/themes";
 import { cn } from "@/lib/utils";
 import { useHistory } from "@/lib/hooks/use-history";
+import { DeckFetchResult, fetchDeckSpec } from "@/lib/client/deck";
+import { DeckSpecSchema } from "@/lib/schemas";
 
 function makeSessionKey() {
   return globalThis.crypto?.randomUUID?.() ?? String(Date.now());
+}
+
+function fetchDeckFromPayload(payload: unknown): DeckFetchResult {
+  const parsed = DeckSpecSchema.safeParse(payload);
+  if (!parsed.success) {
+    return {
+      status: "invalid",
+      error: parsed.error.issues[0]?.message ?? "Invalid deck payload",
+    };
+  }
+  return { status: "ok", deck: parsed.data };
+}
+
+function deckErrorMessage(result: Exclude<DeckFetchResult, { status: "ok"; deck: DeckSpec }>): string {
+  if (result.status === "not_found") return "Deck not found";
+  return result.error;
 }
 
 export default function StudioPage() {
@@ -29,6 +47,7 @@ export default function StudioPage() {
   );
   const [chatSessionKey, setChatSessionKey] = useState(makeSessionKey);
   const [chatInitialPrompt, setChatInitialPrompt] = useState<string | undefined>(undefined);
+  const [deckLoadError, setDeckLoadError] = useState<string | undefined>(undefined);
 
   // Layout State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -41,13 +60,17 @@ export default function StudioPage() {
       slideGeneration.status === "complete" &&
       slideGeneration.result?.deckId
     ) {
-      fetch(`/api/deck/${slideGeneration.result.deckId}`)
-        .then((res) => res.json())
-        .then((json) => {
-          setDeck(json);
+      fetchDeckSpec(slideGeneration.result.deckId).then((result) => {
+        if (result.status === "ok") {
+          setDeck(result.deck);
+          setDeckLoadError(undefined);
           setCurrentSlideIndex(0);
-        })
-        .catch(() => setDeck(null));
+          return;
+        }
+        setDeck(null);
+        setCurrentSlideIndex(0);
+        setDeckLoadError(deckErrorMessage(result));
+      });
     }
   }, [slideGeneration.status, slideGeneration.result?.deckId]);
 
@@ -97,31 +120,30 @@ export default function StudioPage() {
 
   // Resizing Logic
   const startResizing = useCallback(() => setIsResizing(true), []);
-  const stopResizing = useCallback(() => setIsResizing(false), []);
-
-  const resize = useCallback(
-    (e: MouseEvent) => {
-      if (!isResizing) return;
-      const sidebarWidth = isSidebarCollapsed ? 72 : 280;
-      const availableWidth = window.innerWidth - sidebarWidth;
-      const newWidth = ((window.innerWidth - e.clientX) / availableWidth) * 100;
-
-      if (newWidth > 20 && newWidth < 80) setPreviewWidth(newWidth);
-    },
-    [isResizing, isSidebarCollapsed],
-  );
 
   useEffect(() => {
-    window.addEventListener("mousemove", resize);
-    window.addEventListener("mouseup", stopResizing);
-    return () => {
-      window.removeEventListener("mousemove", resize);
-      window.removeEventListener("mouseup", stopResizing);
+    const handleMouseUp = () => setIsResizing(false);
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isResizing) {
+        const sidebarWidth = isSidebarCollapsed ? 72 : 280;
+        const availableWidth = window.innerWidth - sidebarWidth;
+        const newWidth = ((window.innerWidth - e.clientX) / availableWidth) * 100;
+
+        if (newWidth > 20 && newWidth < 80) setPreviewWidth(newWidth);
+      }
     };
-  }, [resize, stopResizing]);
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizing, isSidebarCollapsed]);
 
   const resetAll = useCallback(() => {
     setDeck(null);
+    setDeckLoadError(undefined);
     setCurrentSlideIndex(0);
     setActiveHistoryId(undefined);
     setChatInitialPrompt(undefined);
@@ -167,7 +189,20 @@ export default function StudioPage() {
       if (json.mode === "slides") {
         setMode("slides");
         slideGeneration.hydrate(json.result);
-        setDeck((json as { deck?: DeckSpec }).deck ?? null);
+        const candidate = (json as { deck?: unknown }).deck;
+        if (!candidate) {
+          setDeck(null);
+          setDeckLoadError("History item has no deck payload");
+          return;
+        }
+        const parsed = fetchDeckFromPayload(candidate);
+        if (parsed.status === "ok") {
+          setDeck(parsed.deck);
+          setDeckLoadError(undefined);
+        } else {
+          setDeck(null);
+          setDeckLoadError(deckErrorMessage(parsed));
+        }
         setCurrentSlideIndex(0);
         return;
       }
@@ -219,8 +254,6 @@ export default function StudioPage() {
       <Sidebar
         isCollapsed={isSidebarCollapsed}
         onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-        mode={mode}
-        onSetMode={setMode}
         historyItems={history.items}
         historyStatus={history.status}
         onNew={handleNew}
@@ -243,6 +276,11 @@ export default function StudioPage() {
             webpageGeneration={webpageGeneration}
             knowledgeGraphGeneration={knowledgeGraphGeneration}
           />
+          {deckLoadError ? (
+            <div className="px-4 py-3 text-sm text-red-700 bg-red-50 border-t border-red-200">
+              Deck load error: {deckLoadError}
+            </div>
+          ) : null}
         </div>
 
         {/* Resize Handle */}

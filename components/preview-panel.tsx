@@ -22,15 +22,26 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const PIPELINE_STEPS: Array<{ key: AgentStepName; label: string }> = [
-    { key: "intake", label: "Intake" },
-    { key: "planning", label: "Planning" },
-    { key: "research", label: "Research" },
-    { key: "generation", label: "Drafting" },
-    { key: "assets", label: "Assets" },
-    { key: "qa", label: "QA" },
-    { key: "rendering", label: "Rendering" },
-];
+const PIPELINE_STEPS: Record<OutputMode, Array<{ key: AgentStepName; label: string }>> = {
+    slides: [
+        { key: "intake", label: "Intake" },
+        { key: "planning", label: "Planning" },
+        { key: "research", label: "Research" },
+        { key: "generation", label: "Drafting" },
+        { key: "assets", label: "Assets" },
+        { key: "qa", label: "QA" },
+        { key: "rendering", label: "Rendering" },
+    ],
+    webpage: [
+        { key: "research", label: "Research" },
+        { key: "generation", label: "Generation" },
+    ],
+    "knowledge-graph": [
+        { key: "research", label: "Research" },
+        { key: "generation", label: "Graph Build" },
+        { key: "rendering", label: "Rendering" },
+    ],
+};
 
 interface PreviewPanelProps {
     mode: OutputMode;
@@ -309,11 +320,11 @@ export function PreviewPanel({
                                                 </div>
 
                                                 <div className="mt-4 space-y-2">
-                                                    {PIPELINE_STEPS.map(({ key, label }) => {
+                                                    {PIPELINE_STEPS[mode].map(({ key, label }) => {
                                                         const p = progressByStep.get(key);
                                                         const status = p?.status ?? "pending";
                                                         const isRunning = status === "running";
-                                                        const isDone = status === "done";
+                                                        const isDone = status === "done" || status === "skipped";
                                                         const isError = status === "error";
 
                                                         return (
@@ -459,10 +470,6 @@ export function PreviewPanel({
                     </button>
                 </div>
             )}
-        </div>
-    );
-}
-        )}
         </div>
     );
 }
