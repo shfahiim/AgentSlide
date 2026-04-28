@@ -211,3 +211,16 @@ output/
 ## License
 
 MIT
+
+## Screenshots
+
+### Slides
+
+![AgentSlide studio screenshot showing generated slide preview](docs/screenshots/studio-slides-preview.png)
+![Slides comparison table example](docs/screenshots/slides-comparison-table.png)
+![Slides economic impact example](docs/screenshots/slides-economic-impact.png)
+![Slides roadmap example](docs/screenshots/slides-roadmap.png)
+
+### Knowledge Graph
+
+![Knowledge graph preview](docs/screenshots/knowledge-graph-preview.png)
